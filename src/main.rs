@@ -28,6 +28,14 @@ struct Cli {
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    // Panic hook to restore terminal even on crash
+    let original_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = disable_raw_mode();
+        let _ = execute!(std::io::stdout(), LeaveAlternateScreen);
+        original_hook(info);
+    }));
+
     enable_raw_mode().context("Failed to enable raw mode")?;
     let mut stdout = std::io::stdout();
     execute!(stdout, EnterAlternateScreen).context("Failed to enter alternate screen")?;
@@ -71,5 +79,6 @@ async fn run_app(
         }
     }
 
+    events.stop();
     Ok(())
 }

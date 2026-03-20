@@ -1,6 +1,7 @@
 use crossterm::event::{self, Event, KeyEvent};
 use std::time::Duration;
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 #[derive(Debug)]
 pub enum AppEvent {
@@ -23,17 +24,18 @@ pub enum AppEvent {
 pub struct EventHandler {
     rx: mpsc::UnboundedReceiver<AppEvent>,
     tx: mpsc::UnboundedSender<AppEvent>,
+    cancel: CancellationToken,
 }
 
 impl EventHandler {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
-        let tick_tx = tx.clone();
+        let cancel = CancellationToken::new();
 
-        // Terminal event reader
         let term_tx = tx.clone();
-        tokio::spawn(async move {
-            loop {
+        let term_cancel = cancel.clone();
+        std::thread::spawn(move || {
+            while !term_cancel.is_cancelled() {
                 if event::poll(Duration::from_millis(50)).unwrap_or(false) {
                     match event::read() {
                         Ok(Event::Key(key)) => {
@@ -50,18 +52,23 @@ impl EventHandler {
             }
         });
 
-        // Tick timer
+        let tick_tx = tx.clone();
+        let tick_cancel = cancel.clone();
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_millis(200));
             loop {
-                interval.tick().await;
-                if tick_tx.send(AppEvent::Tick).is_err() {
-                    break;
+                tokio::select! {
+                    _ = tick_cancel.cancelled() => break,
+                    _ = interval.tick() => {
+                        if tick_tx.send(AppEvent::Tick).is_err() {
+                            break;
+                        }
+                    }
                 }
             }
         });
 
-        Self { rx, tx }
+        Self { rx, tx, cancel }
     }
 
     pub fn sender(&self) -> mpsc::UnboundedSender<AppEvent> {
@@ -70,5 +77,9 @@ impl EventHandler {
 
     pub async fn next(&mut self) -> Option<AppEvent> {
         self.rx.recv().await
+    }
+
+    pub fn stop(&self) {
+        self.cancel.cancel();
     }
 }
