@@ -2,6 +2,8 @@
 
 Terminal UI for reviewing GitHub pull requests. View diffs (unified and side-by-side), comment on specific lines, expand context, and approve — all without leaving the terminal.
 
+![gh-review screenshot](docs/screenshot.png)
+
 ## Install
 
 ```bash
