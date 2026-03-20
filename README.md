@@ -72,10 +72,16 @@ gh-dash (browse PRs)
 
 | Key | Action |
 |-----|--------|
-| `j` / `k` / `↑` / `↓` | Scroll diff |
+| `j` / `k` / `↑` / `↓` | Scroll line |
+| `gg` / `G` | Go to first / last line |
+| `Ctrl+D` / `Ctrl+U` | Half page down / up |
+| `Ctrl+F` / `Ctrl+B` | Full page down / up |
+| `H` / `M` / `L` | Cursor to screen top / middle / bottom |
+| `]` / `}` | Next hunk |
+| `[` / `{` | Previous hunk |
+| `)` / `(` | Next / previous change |
 | `n` / `N` | Next / previous file |
-| `g` / `G` | Go to first / last line |
-| `Ctrl+D` / `Ctrl+U` | Page down / page up |
+| `zz` / `zt` / `zb` | Center / top / bottom cursor in viewport |
 | `Tab` | Switch focus between file list and diff |
 
 ### Diff
