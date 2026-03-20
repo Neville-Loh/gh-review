@@ -11,6 +11,7 @@ use crate::components::diff_view::DiffView;
 use crate::components::file_picker::FilePicker;
 use crate::components::help::HelpOverlay;
 use crate::components::review_bar::ReviewBar;
+use crate::components::review_confirm::ReviewConfirm;
 use crate::event::AppEvent;
 use crate::types::{DiffFile, ExistingComment, PrMetadata, ReviewComment, ReviewEvent};
 
@@ -32,10 +33,12 @@ pub struct App {
     file_picker: FilePicker,
     diff_view: DiffView,
     comment_input: CommentInput,
+    review_confirm: ReviewConfirm,
 
     focus: Focus,
     show_help: bool,
     status_msg: String,
+    status_is_error: bool,
     loading: bool,
     should_quit: bool,
     pending_key: Option<char>,
@@ -56,9 +59,11 @@ impl App {
             file_picker: FilePicker::new(),
             diff_view: DiffView::new(),
             comment_input: CommentInput::new(),
+            review_confirm: ReviewConfirm::new(),
             focus: Focus::DiffView,
             show_help: false,
             status_msg: String::new(),
+            status_is_error: false,
             loading: true,
             should_quit: false,
             pending_key: None,
@@ -141,18 +146,36 @@ impl App {
                 self.expand_context(&path, &base_content, &head_content);
             }
             AppEvent::ReviewSubmitted => {
-                self.status_msg = "Review submitted!".to_string();
+                self.status_msg = "✓ Review submitted!".to_string();
+                self.status_is_error = false;
                 self.pending_comments.clear();
                 self.rebuild_display();
             }
             AppEvent::Error(msg) => {
                 self.status_msg = msg;
+                self.status_is_error = true;
                 self.loading = false;
             }
         }
     }
 
     fn handle_key(&mut self, key: crossterm::event::KeyEvent) {
+        // Review confirmation popup takes priority
+        if self.review_confirm.visible {
+            match key.code {
+                KeyCode::Enter => {
+                    let event = self.review_confirm.event;
+                    self.review_confirm.hide();
+                    self.submit_review(event);
+                }
+                KeyCode::Esc => {
+                    self.review_confirm.hide();
+                }
+                _ => {}
+            }
+            return;
+        }
+
         // Comment input takes priority when visible
         if self.comment_input.visible {
             let input: Input = key.into();
@@ -285,10 +308,10 @@ impl App {
             // Expand context
             KeyCode::Char('e') => self.request_expand(),
 
-            // Review actions
-            KeyCode::Char('a') => self.submit_review(ReviewEvent::Approve),
-            KeyCode::Char('r') => self.submit_review(ReviewEvent::RequestChanges),
-            KeyCode::Char('s') => self.submit_review(ReviewEvent::Comment),
+            // Review actions — show confirmation popup
+            KeyCode::Char('a') => self.review_confirm.show(ReviewEvent::Approve, self.pending_comments.len()),
+            KeyCode::Char('r') => self.review_confirm.show(ReviewEvent::RequestChanges, self.pending_comments.len()),
+            KeyCode::Char('s') => self.review_confirm.show(ReviewEvent::Comment, self.pending_comments.len()),
 
             // Open in browser
             KeyCode::Char('o') => self.open_in_browser(),
@@ -444,11 +467,16 @@ impl App {
             frame.buffer_mut(),
             self.pending_comments.len(),
             &self.status_msg,
+            self.status_is_error,
         );
 
         // Overlays
         if self.comment_input.visible {
             self.comment_input.draw(content_layout[1], frame.buffer_mut());
+        }
+
+        if self.review_confirm.visible {
+            self.review_confirm.draw(size, frame.buffer_mut());
         }
 
         if self.show_help {
