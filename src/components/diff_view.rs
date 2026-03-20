@@ -8,12 +8,14 @@ use ratatui::{
 use crate::diff::renderer::{build_display_rows, render_sbs_row, render_unified_row, DisplayRow};
 use crate::theme::Theme;
 use crate::types::{DiffFile, DiffMode, ExistingComment, ReviewComment};
+use std::collections::HashSet;
 
 pub struct DiffView {
     pub scroll_offset: usize,
     pub cursor: usize,
     pub mode: DiffMode,
     display_rows: Vec<DisplayRow>,
+    expanded_comments: HashSet<usize>,
 }
 
 impl DiffView {
@@ -23,6 +25,7 @@ impl DiffView {
             cursor: 0,
             mode: DiffMode::Unified,
             display_rows: Vec::new(),
+            expanded_comments: HashSet::new(),
         }
     }
 
@@ -32,7 +35,31 @@ impl DiffView {
         existing_comments: &[ExistingComment],
         pending_comments: &[ReviewComment],
     ) {
-        self.display_rows = build_display_rows(files, existing_comments, pending_comments);
+        self.display_rows = build_display_rows(
+            files,
+            existing_comments,
+            pending_comments,
+            &self.expanded_comments,
+        );
+    }
+
+    /// Toggle expand/collapse if cursor is on a comment row. Returns true if toggled.
+    pub fn toggle_comment_expand(&mut self) -> bool {
+        let comment_id = match self.display_rows.get(self.cursor) {
+            Some(DisplayRow::ExistingComment { comment_id, .. }) => Some(*comment_id),
+            Some(DisplayRow::PendingComment { comment_id, .. }) => Some(*comment_id),
+            _ => None,
+        };
+        if let Some(cid) = comment_id {
+            if self.expanded_comments.contains(&cid) {
+                self.expanded_comments.remove(&cid);
+            } else {
+                self.expanded_comments.insert(cid);
+            }
+            true
+        } else {
+            false
+        }
     }
 
     pub fn total_rows(&self) -> usize {

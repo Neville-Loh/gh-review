@@ -33,9 +33,19 @@ pub enum DisplayRow {
     ExistingComment {
         author: String,
         body: String,
+        comment_id: usize,
+        expanded: bool,
+    },
+    ExistingCommentLine {
+        text: String,
     },
     PendingComment {
         body: String,
+        comment_id: usize,
+        expanded: bool,
+    },
+    PendingCommentLine {
+        text: String,
     },
 }
 
@@ -46,12 +56,15 @@ pub enum ExpandDirection {
 }
 
 /// Build the flat list of display rows from structured diff files.
+/// `expanded_comments` is a set of comment IDs that should show the full body.
 pub fn build_display_rows(
     files: &[DiffFile],
     existing_comments: &[ExistingComment],
     pending_comments: &[ReviewComment],
+    expanded_comments: &std::collections::HashSet<usize>,
 ) -> Vec<DisplayRow> {
     let mut rows = Vec::new();
+    let mut comment_id_counter: usize = 0;
 
     for (file_idx, file) in files.iter().enumerate() {
         rows.push(DisplayRow::FileHeader {
@@ -73,7 +86,6 @@ pub fn build_display_rows(
                     line_idx,
                 });
 
-                // Show existing comments anchored to this line
                 let target_line = match line.kind {
                     LineKind::Added | LineKind::Context => line.new_lineno,
                     LineKind::Removed => line.old_lineno,
@@ -84,19 +96,43 @@ pub fn build_display_rows(
                         .iter()
                         .filter(|c| c.path == file.path && c.line == Some(lineno))
                     {
+                        let cid = comment_id_counter;
+                        comment_id_counter += 1;
+                        let is_expanded = expanded_comments.contains(&cid);
                         rows.push(DisplayRow::ExistingComment {
                             author: ec.user.login.clone(),
                             body: ec.body.clone(),
+                            comment_id: cid,
+                            expanded: is_expanded,
                         });
+                        if is_expanded {
+                            for extra_line in ec.body.lines().skip(1) {
+                                rows.push(DisplayRow::ExistingCommentLine {
+                                    text: extra_line.to_string(),
+                                });
+                            }
+                        }
                     }
 
                     for pc in pending_comments
                         .iter()
                         .filter(|c| c.path == file.path && c.line == lineno)
                     {
+                        let cid = comment_id_counter;
+                        comment_id_counter += 1;
+                        let is_expanded = expanded_comments.contains(&cid);
                         rows.push(DisplayRow::PendingComment {
                             body: pc.body.clone(),
+                            comment_id: cid,
+                            expanded: is_expanded,
                         });
+                        if is_expanded {
+                            for extra_line in pc.body.lines().skip(1) {
+                                rows.push(DisplayRow::PendingCommentLine {
+                                    text: extra_line.to_string(),
+                                });
+                            }
+                        }
                     }
                 }
             }
@@ -132,26 +168,58 @@ pub fn render_unified_row(row: &DisplayRow, _width: u16, is_selected: bool) -> L
             ),
             Theme::expand_hint(),
         )]),
-        DisplayRow::ExistingComment { author, body } => {
+        DisplayRow::ExistingComment { author, body, expanded, .. } => {
             let first_line = body.lines().next().unwrap_or("");
+            let has_more = body.lines().count() > 1;
+            let toggle = if has_more {
+                if *expanded { "▼ " } else { "▶ " }
+            } else {
+                "  "
+            };
             Line::from(vec![
                 Span::styled(
                     format!("{:>pad$}  {:>pad$} ", "", "", pad = LINE_NUM_WIDTH),
                     Theme::line_number(),
                 ),
+                Span::styled(toggle.to_string(), Theme::comment_marker()),
                 Span::styled(format!("💬 {author}: "), Theme::comment_marker()),
                 Span::styled(first_line.to_string(), Theme::comment_body()),
             ])
         }
-        DisplayRow::PendingComment { body } => {
+        DisplayRow::ExistingCommentLine { text } => {
+            Line::from(vec![
+                Span::styled(
+                    format!("{:>pad$}  {:>pad$}    ", "", "", pad = LINE_NUM_WIDTH),
+                    Theme::line_number(),
+                ),
+                Span::styled(text.clone(), Theme::comment_body()),
+            ])
+        }
+        DisplayRow::PendingComment { body, expanded, .. } => {
             let first_line = body.lines().next().unwrap_or("");
+            let has_more = body.lines().count() > 1;
+            let toggle = if has_more {
+                if *expanded { "▼ " } else { "▶ " }
+            } else {
+                "  "
+            };
             Line::from(vec![
                 Span::styled(
                     format!("{:>pad$}  {:>pad$} ", "", "", pad = LINE_NUM_WIDTH),
                     Theme::line_number(),
                 ),
+                Span::styled(toggle.to_string(), Theme::pending_count()),
                 Span::styled("📝 (pending) ", Theme::pending_count()),
                 Span::styled(first_line.to_string(), Theme::comment_body()),
+            ])
+        }
+        DisplayRow::PendingCommentLine { text } => {
+            Line::from(vec![
+                Span::styled(
+                    format!("{:>pad$}  {:>pad$}    ", "", "", pad = LINE_NUM_WIDTH),
+                    Theme::line_number(),
+                ),
+                Span::styled(text.clone(), Theme::comment_body()),
             ])
         }
     };

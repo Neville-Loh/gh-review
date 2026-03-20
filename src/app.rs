@@ -299,6 +299,13 @@ impl App {
                 }
             }
 
+            // Expand/collapse comment
+            KeyCode::Enter => {
+                if self.diff_view.toggle_comment_expand() {
+                    self.rebuild_display();
+                }
+            }
+
             // View toggle
             KeyCode::Char('t') => self.diff_view.toggle_mode(),
 
