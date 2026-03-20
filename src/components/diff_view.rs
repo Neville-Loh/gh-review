@@ -100,6 +100,80 @@ impl DiffView {
         }
     }
 
+    /// Jump to next hunk header (`]` or `}`).
+    pub fn next_hunk(&mut self) {
+        let start = self.cursor + 1;
+        for i in start..self.display_rows.len() {
+            if matches!(self.display_rows[i], DisplayRow::HunkHeader { .. }) {
+                self.cursor = i;
+                return;
+            }
+        }
+    }
+
+    /// Jump to previous hunk header (`[` or `{`).
+    pub fn prev_hunk(&mut self) {
+        if self.cursor == 0 {
+            return;
+        }
+        for i in (0..self.cursor).rev() {
+            if matches!(self.display_rows[i], DisplayRow::HunkHeader { .. }) {
+                self.cursor = i;
+                return;
+            }
+        }
+    }
+
+    /// Jump to next change (added or removed line).
+    pub fn next_change(&mut self) {
+        let start = self.cursor + 1;
+        for i in start..self.display_rows.len() {
+            if let DisplayRow::DiffLine { line, .. } = &self.display_rows[i] {
+                if line.kind != crate::types::LineKind::Context {
+                    self.cursor = i;
+                    return;
+                }
+            }
+        }
+    }
+
+    /// Jump to previous change (added or removed line).
+    pub fn prev_change(&mut self) {
+        if self.cursor == 0 {
+            return;
+        }
+        for i in (0..self.cursor).rev() {
+            if let DisplayRow::DiffLine { line, .. } = &self.display_rows[i] {
+                if line.kind != crate::types::LineKind::Context {
+                    self.cursor = i;
+                    return;
+                }
+            }
+        }
+    }
+
+    /// Move cursor to top of visible area (H in vim).
+    pub fn screen_top(&mut self) {
+        self.cursor = self.scroll_offset;
+    }
+
+    /// Move cursor to middle of visible area (M in vim).
+    pub fn screen_middle(&mut self, visible_height: usize) {
+        let mid = self.scroll_offset + visible_height / 2;
+        self.cursor = mid.min(self.display_rows.len().saturating_sub(1));
+    }
+
+    /// Move cursor to bottom of visible area (L in vim).
+    pub fn screen_bottom(&mut self, visible_height: usize) {
+        let bot = (self.scroll_offset + visible_height).saturating_sub(1);
+        self.cursor = bot.min(self.display_rows.len().saturating_sub(1));
+    }
+
+    /// Center the viewport on the cursor (zz in vim).
+    pub fn center_cursor(&mut self, visible_height: usize) {
+        self.scroll_offset = self.cursor.saturating_sub(visible_height / 2);
+    }
+
     pub fn toggle_mode(&mut self) {
         self.mode = match self.mode {
             DiffMode::Unified => DiffMode::SideBySide,

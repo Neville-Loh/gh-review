@@ -19,7 +19,7 @@ gh-review <OWNER/REPO> <PR_NUMBER>
 ```
 
 ```bash
-gh-review ROKT/srs 1234
+gh-review octocat/hello-world 42
 ```
 
 ### With gh-dash

@@ -38,6 +38,8 @@ pub struct App {
     status_msg: String,
     loading: bool,
     should_quit: bool,
+    pending_key: Option<char>,
+    visible_height: usize,
 
     tx: mpsc::UnboundedSender<AppEvent>,
 }
@@ -59,6 +61,8 @@ impl App {
             status_msg: String::new(),
             loading: true,
             should_quit: false,
+            pending_key: None,
+            visible_height: 40,
             tx,
         }
     }
@@ -179,6 +183,23 @@ impl App {
             return;
         }
 
+        // Handle two-key sequences (gg, zz, zt, zb)
+        if let Some(pending) = self.pending_key.take() {
+            match (pending, key.code) {
+                ('g', KeyCode::Char('g')) => self.diff_view.goto_first(),
+                ('z', KeyCode::Char('z')) => self.diff_view.center_cursor(self.visible_height),
+                ('z', KeyCode::Char('t')) => {
+                    self.diff_view.scroll_offset = self.diff_view.cursor;
+                }
+                ('z', KeyCode::Char('b')) => {
+                    self.diff_view.scroll_offset =
+                        self.diff_view.cursor.saturating_sub(self.visible_height.saturating_sub(1));
+                }
+                _ => {}
+            }
+            return;
+        }
+
         match key.code {
             KeyCode::Char('q') => self.should_quit = true,
             KeyCode::Char('?') => self.show_help = true,
@@ -191,7 +212,7 @@ impl App {
                 };
             }
 
-            // Navigation
+            // Navigation — basic
             KeyCode::Char('j') | KeyCode::Down => match self.focus {
                 Focus::DiffView => self.diff_view.scroll_down(1),
                 Focus::FilePicker => {
@@ -206,14 +227,42 @@ impl App {
                     self.diff_view.goto_file(self.file_picker.selected);
                 }
             },
+
+            // Navigation — page scroll
             KeyCode::Char('d') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.diff_view.page_down(20);
+                self.diff_view.page_down(self.visible_height / 2);
             }
             KeyCode::Char('u') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                self.diff_view.page_up(20);
+                self.diff_view.page_up(self.visible_height / 2);
             }
-            KeyCode::Char('g') => self.diff_view.goto_first(),
+            KeyCode::Char('f') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.diff_view.page_down(self.visible_height);
+            }
+            KeyCode::Char('b') if key.modifiers.contains(KeyModifiers::CONTROL) => {
+                self.diff_view.page_up(self.visible_height);
+            }
+
+            // Navigation — start pending key sequences
+            KeyCode::Char('g') => self.pending_key = Some('g'),
+            KeyCode::Char('z') => self.pending_key = Some('z'),
+
+            // Navigation — top/bottom
             KeyCode::Char('G') => self.diff_view.goto_last(),
+
+            // Navigation — screen-relative (H/M/L)
+            KeyCode::Char('H') => self.diff_view.screen_top(),
+            KeyCode::Char('M') => self.diff_view.screen_middle(self.visible_height),
+            KeyCode::Char('L') => self.diff_view.screen_bottom(self.visible_height),
+
+            // Navigation — hunk jumping
+            KeyCode::Char(']') | KeyCode::Char('}') => self.diff_view.next_hunk(),
+            KeyCode::Char('[') | KeyCode::Char('{') => self.diff_view.prev_hunk(),
+
+            // Navigation — jump to next/prev change
+            KeyCode::Char(')') => self.diff_view.next_change(),
+            KeyCode::Char('(') => self.diff_view.prev_change(),
+
+            // Navigation — file jumping
             KeyCode::Char('n') => {
                 self.diff_view.next_file();
                 if let Some(fi) = self.diff_view.current_file_idx() {
@@ -373,7 +422,8 @@ impl App {
             .split(main_layout[1]);
 
         // Update scroll visibility before drawing
-        let diff_height = content_layout[1].height.saturating_sub(2) as usize; // -2 for borders
+        let diff_height = content_layout[1].height.saturating_sub(2) as usize;
+        self.visible_height = diff_height;
         self.diff_view.ensure_visible(diff_height);
 
         self.file_picker.draw(
