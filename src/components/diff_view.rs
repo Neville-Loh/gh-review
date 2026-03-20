@@ -46,8 +46,7 @@ impl DiffView {
     /// Toggle expand/collapse if cursor is on a comment row. Returns true if toggled.
     pub fn toggle_comment_expand(&mut self) -> bool {
         let comment_id = match self.display_rows.get(self.cursor) {
-            Some(DisplayRow::ExistingComment { comment_id, .. }) => Some(*comment_id),
-            Some(DisplayRow::PendingComment { comment_id, .. }) => Some(*comment_id),
+            Some(DisplayRow::CommentHeader { comment_id, .. }) => Some(*comment_id),
             _ => None,
         };
         if let Some(cid) = comment_id {
@@ -282,6 +281,15 @@ impl DiffView {
         let inner = block.inner(area);
         Widget::render(block, area, buf);
 
+        // Clear the inner area to prevent artifacts from previous frames
+        for y in inner.y..inner.y + inner.height {
+            for x in inner.x..inner.x + inner.width {
+                if let Some(cell) = buf.cell_mut((x, y)) {
+                    cell.reset();
+                }
+            }
+        }
+
         // Ensure cursor is visible
         let visible_height = inner.height as usize;
         let scroll = self.effective_scroll(visible_height);
@@ -326,7 +334,7 @@ impl DiffView {
             .direction(Direction::Horizontal)
             .constraints([
                 Constraint::Length(half_width),
-                Constraint::Length(1), // separator
+                Constraint::Length(1),
                 Constraint::Min(0),
             ])
             .split(area);
@@ -334,23 +342,76 @@ impl DiffView {
         let end = (scroll + visible_height).min(self.display_rows.len());
         let visible = &self.display_rows[scroll..end];
 
+        // Build paired SBS lines by grouping consecutive removed+added blocks
         let mut left_lines: Vec<Line> = Vec::new();
         let mut right_lines: Vec<Line> = Vec::new();
 
-        for (i, row) in visible.iter().enumerate() {
+        let mut i = 0;
+        while i < visible.len() {
             let global_idx = scroll + i;
-            let selected = global_idx == self.cursor;
 
-            match row {
+            match &visible[i] {
+                DisplayRow::DiffLine { line, .. }
+                    if line.kind == crate::types::LineKind::Removed =>
+                {
+                    // Collect consecutive removed lines
+                    let mut removed = Vec::new();
+                    let mut j = i;
+                    while j < visible.len() {
+                        if let DisplayRow::DiffLine { line: l, .. } = &visible[j] {
+                            if l.kind == crate::types::LineKind::Removed {
+                                removed.push((scroll + j, &visible[j]));
+                                j += 1;
+                                continue;
+                            }
+                        }
+                        break;
+                    }
+                    // Collect consecutive added lines that follow
+                    let mut added = Vec::new();
+                    while j < visible.len() {
+                        if let DisplayRow::DiffLine { line: l, .. } = &visible[j] {
+                            if l.kind == crate::types::LineKind::Added {
+                                added.push((scroll + j, &visible[j]));
+                                j += 1;
+                                continue;
+                            }
+                        }
+                        break;
+                    }
+                    // Pair them up
+                    let max_len = removed.len().max(added.len());
+                    for k in 0..max_len {
+                        let sel_left = removed.get(k).map_or(false, |(gi, _)| *gi == self.cursor);
+                        let sel_right = added.get(k).map_or(false, |(gi, _)| *gi == self.cursor);
+                        let selected = sel_left || sel_right;
+
+                        let left = removed
+                            .get(k)
+                            .map(|(_, row)| render_sbs_row(row, half_width, selected).0)
+                            .unwrap_or_default();
+                        let right = added
+                            .get(k)
+                            .map(|(_, row)| render_sbs_row(row, half_width, selected).1)
+                            .unwrap_or_default();
+                        left_lines.push(left);
+                        right_lines.push(right);
+                    }
+                    i = j;
+                }
                 DisplayRow::DiffLine { .. } => {
-                    let (l, r) = render_sbs_row(row, half_width, selected);
+                    let selected = global_idx == self.cursor;
+                    let (l, r) = render_sbs_row(&visible[i], half_width, selected);
                     left_lines.push(l);
                     right_lines.push(r);
+                    i += 1;
                 }
                 _ => {
-                    let unified = render_unified_row(row, area.width, selected);
+                    let selected = global_idx == self.cursor;
+                    let unified = render_unified_row(&visible[i], area.width, selected);
                     left_lines.push(unified);
                     right_lines.push(Line::default());
+                    i += 1;
                 }
             }
         }
@@ -360,7 +421,6 @@ impl DiffView {
 
         Widget::render(left_para, layout[0], buf);
 
-        // Separator
         for y in 0..area.height {
             if let Some(cell) = buf.cell_mut((layout[1].x, layout[1].y + y)) {
                 cell.set_char('│');

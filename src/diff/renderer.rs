@@ -6,8 +6,6 @@ use ratatui::{
 use crate::theme::Theme;
 use crate::types::{DiffFile, DiffLine, ExistingComment, LineKind, ReviewComment};
 
-/// A renderable line in the diff view — may be a hunk header, diff line,
-/// expand hint, comment, or file header.
 #[derive(Debug, Clone)]
 pub enum DisplayRow {
     FileHeader {
@@ -30,23 +28,18 @@ pub enum DisplayRow {
         direction: ExpandDirection,
         available_lines: usize,
     },
-    ExistingComment {
+    CommentHeader {
         author: String,
-        body: String,
+        is_pending: bool,
         comment_id: usize,
         expanded: bool,
+        body_preview: String,
+        body_lines: usize,
     },
-    ExistingCommentLine {
-        text: String,
+    CommentBodyLine {
+        line: Line<'static>,
     },
-    PendingComment {
-        body: String,
-        comment_id: usize,
-        expanded: bool,
-    },
-    PendingCommentLine {
-        text: String,
-    },
+    CommentFooter,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -55,8 +48,24 @@ pub enum ExpandDirection {
     Down,
 }
 
-/// Build the flat list of display rows from structured diff files.
-/// `expanded_comments` is a set of comment IDs that should show the full body.
+const COMMENT_INDENT: &str = "              ";
+const BOX_PADDING: &str = "  ";
+
+fn render_markdown_to_lines(body: &str) -> Vec<Line<'static>> {
+    let text = tui_markdown::from_str(body);
+    text.lines
+        .into_iter()
+        .map(|line| {
+            Line::from(
+                line.spans
+                    .into_iter()
+                    .map(|span| Span::styled(span.content.to_string(), span.style))
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect()
+}
+
 pub fn build_display_rows(
     files: &[DiffFile],
     existing_comments: &[ExistingComment],
@@ -99,18 +108,24 @@ pub fn build_display_rows(
                         let cid = comment_id_counter;
                         comment_id_counter += 1;
                         let is_expanded = expanded_comments.contains(&cid);
-                        rows.push(DisplayRow::ExistingComment {
+                        let preview = ec.body.lines().next().unwrap_or("").to_string();
+                        let body_lines = ec.body.lines().count();
+
+                        rows.push(DisplayRow::CommentHeader {
                             author: ec.user.login.clone(),
-                            body: ec.body.clone(),
+                            is_pending: false,
                             comment_id: cid,
                             expanded: is_expanded,
+                            body_preview: preview,
+                            body_lines,
                         });
+
                         if is_expanded {
-                            for extra_line in ec.body.lines().skip(1) {
-                                rows.push(DisplayRow::ExistingCommentLine {
-                                    text: extra_line.to_string(),
-                                });
+                            let md_lines = render_markdown_to_lines(&ec.body);
+                            for ml in md_lines {
+                                rows.push(DisplayRow::CommentBodyLine { line: ml });
                             }
+                            rows.push(DisplayRow::CommentFooter);
                         }
                     }
 
@@ -121,17 +136,24 @@ pub fn build_display_rows(
                         let cid = comment_id_counter;
                         comment_id_counter += 1;
                         let is_expanded = expanded_comments.contains(&cid);
-                        rows.push(DisplayRow::PendingComment {
-                            body: pc.body.clone(),
+                        let preview = pc.body.lines().next().unwrap_or("").to_string();
+                        let body_lines = pc.body.lines().count();
+
+                        rows.push(DisplayRow::CommentHeader {
+                            author: String::new(),
+                            is_pending: true,
                             comment_id: cid,
                             expanded: is_expanded,
+                            body_preview: preview,
+                            body_lines,
                         });
+
                         if is_expanded {
-                            for extra_line in pc.body.lines().skip(1) {
-                                rows.push(DisplayRow::PendingCommentLine {
-                                    text: extra_line.to_string(),
-                                });
+                            let md_lines = render_markdown_to_lines(&pc.body);
+                            for ml in md_lines {
+                                rows.push(DisplayRow::CommentBodyLine { line: ml });
                             }
+                            rows.push(DisplayRow::CommentFooter);
                         }
                     }
                 }
@@ -144,7 +166,6 @@ pub fn build_display_rows(
 
 const LINE_NUM_WIDTH: usize = 5;
 
-/// Render a single display row as a unified diff line.
 pub fn render_unified_row(row: &DisplayRow, _width: u16, is_selected: bool) -> Line<'static> {
     let base_line = match row {
         DisplayRow::FileHeader { path, .. } => {
@@ -168,58 +189,81 @@ pub fn render_unified_row(row: &DisplayRow, _width: u16, is_selected: bool) -> L
             ),
             Theme::expand_hint(),
         )]),
-        DisplayRow::ExistingComment { author, body, expanded, .. } => {
-            let first_line = body.lines().next().unwrap_or("");
-            let has_more = body.lines().count() > 1;
-            let toggle = if has_more {
-                if *expanded { "▼ " } else { "▶ " }
+        DisplayRow::CommentHeader {
+            author,
+            is_pending,
+            expanded,
+            body_preview,
+            body_lines,
+            ..
+        } => {
+            let toggle = if *body_lines > 1 {
+                if *expanded { "▼" } else { "▶" }
             } else {
-                "  "
+                " "
             };
-            Line::from(vec![
-                Span::styled(
-                    format!("{:>pad$}  {:>pad$} ", "", "", pad = LINE_NUM_WIDTH),
-                    Theme::line_number(),
-                ),
-                Span::styled(toggle.to_string(), Theme::comment_marker()),
-                Span::styled(format!("💬 {author}: "), Theme::comment_marker()),
-                Span::styled(first_line.to_string(), Theme::comment_body()),
-            ])
-        }
-        DisplayRow::ExistingCommentLine { text } => {
-            Line::from(vec![
-                Span::styled(
-                    format!("{:>pad$}  {:>pad$}    ", "", "", pad = LINE_NUM_WIDTH),
-                    Theme::line_number(),
-                ),
-                Span::styled(text.clone(), Theme::comment_body()),
-            ])
-        }
-        DisplayRow::PendingComment { body, expanded, .. } => {
-            let first_line = body.lines().next().unwrap_or("");
-            let has_more = body.lines().count() > 1;
-            let toggle = if has_more {
-                if *expanded { "▼ " } else { "▶ " }
+
+            if *is_pending {
+                if *expanded {
+                    Line::from(vec![
+                        Span::styled(COMMENT_INDENT, Theme::line_number()),
+                        Span::styled(
+                            format!("{toggle} ┌─ 📝 pending "),
+                            Theme::pending_count(),
+                        ),
+                        Span::styled(
+                            "─".repeat(30),
+                            Theme::pending_count(),
+                        ),
+                    ])
+                } else {
+                    Line::from(vec![
+                        Span::styled(COMMENT_INDENT, Theme::line_number()),
+                        Span::styled(
+                            format!("{toggle} 📝 (pending) "),
+                            Theme::pending_count(),
+                        ),
+                        Span::styled(body_preview.clone(), Theme::comment_body()),
+                    ])
+                }
+            } else if *expanded {
+                Line::from(vec![
+                    Span::styled(COMMENT_INDENT, Theme::line_number()),
+                    Span::styled(
+                        format!("{toggle} ┌─ 💬 {author} "),
+                        Theme::comment_marker(),
+                    ),
+                    Span::styled(
+                        "─".repeat(30),
+                        Theme::comment_marker(),
+                    ),
+                ])
             } else {
-                "  "
-            };
-            Line::from(vec![
-                Span::styled(
-                    format!("{:>pad$}  {:>pad$} ", "", "", pad = LINE_NUM_WIDTH),
-                    Theme::line_number(),
-                ),
-                Span::styled(toggle.to_string(), Theme::pending_count()),
-                Span::styled("📝 (pending) ", Theme::pending_count()),
-                Span::styled(first_line.to_string(), Theme::comment_body()),
-            ])
+                Line::from(vec![
+                    Span::styled(COMMENT_INDENT, Theme::line_number()),
+                    Span::styled(
+                        format!("{toggle} 💬 {author}: "),
+                        Theme::comment_marker(),
+                    ),
+                    Span::styled(body_preview.clone(), Theme::comment_body()),
+                ])
+            }
         }
-        DisplayRow::PendingCommentLine { text } => {
+        DisplayRow::CommentBodyLine { line } => {
+            let mut spans = vec![
+                Span::styled(COMMENT_INDENT, Theme::line_number()),
+                Span::styled("  │ ", Theme::comment_marker()),
+            ];
+            spans.extend(line.spans.iter().cloned());
+            Line::from(spans)
+        }
+        DisplayRow::CommentFooter => {
             Line::from(vec![
+                Span::styled(COMMENT_INDENT, Theme::line_number()),
                 Span::styled(
-                    format!("{:>pad$}  {:>pad$}    ", "", "", pad = LINE_NUM_WIDTH),
-                    Theme::line_number(),
+                    format!("  └{}",  "─".repeat(34)),
+                    Theme::comment_marker(),
                 ),
-                Span::styled(text.clone(), Theme::comment_body()),
             ])
         }
     };
@@ -260,8 +304,6 @@ fn render_unified_diff_line(line: &DiffLine) -> Line<'static> {
     ])
 }
 
-/// Render a single display row as side-by-side diff.
-/// Returns (left_line, right_line) or a single spanning line.
 pub fn render_sbs_row(
     row: &DisplayRow,
     half_width: u16,
@@ -276,9 +318,18 @@ pub fn render_sbs_row(
     }
 }
 
+fn truncate_to_width(s: &str, max_chars: usize) -> String {
+    if s.len() <= max_chars {
+        s.to_string()
+    } else {
+        let truncated: String = s.chars().take(max_chars.saturating_sub(1)).collect();
+        format!("{truncated}…")
+    }
+}
+
 fn render_sbs_diff_line(
     line: &DiffLine,
-    _half_width: u16,
+    half_width: u16,
     is_selected: bool,
 ) -> (Line<'static>, Line<'static>) {
     let sel = if is_selected {
@@ -286,6 +337,8 @@ fn render_sbs_diff_line(
     } else {
         Style::default()
     };
+
+    let content_max = (half_width as usize).saturating_sub(LINE_NUM_WIDTH + 3);
 
     match line.kind {
         LineKind::Context => {
@@ -298,16 +351,17 @@ fn render_sbs_diff_line(
                 .map(|n| format!("{n:>LINE_NUM_WIDTH$}"))
                 .unwrap_or(" ".repeat(LINE_NUM_WIDTH));
 
+            let content = truncate_to_width(&line.content, content_max);
             let style = Theme::context_line().patch(sel);
             let left = Line::from(vec![
                 Span::styled(num_l, Theme::line_number().patch(sel)),
                 Span::styled("  ", style),
-                Span::styled(line.content.clone(), style),
+                Span::styled(content.clone(), style),
             ]);
             let right = Line::from(vec![
                 Span::styled(num_r, Theme::line_number().patch(sel)),
                 Span::styled("  ", style),
-                Span::styled(line.content.clone(), style),
+                Span::styled(content, style),
             ]);
             (left, right)
         }
@@ -316,11 +370,12 @@ fn render_sbs_diff_line(
                 .old_lineno
                 .map(|n| format!("{n:>LINE_NUM_WIDTH$}"))
                 .unwrap_or(" ".repeat(LINE_NUM_WIDTH));
+            let content = truncate_to_width(&line.content, content_max);
             let style = Theme::removed_line_bg().patch(sel);
             let left = Line::from(vec![
                 Span::styled(num, Theme::line_number().patch(sel)),
                 Span::styled(" -", style),
-                Span::styled(line.content.clone(), style),
+                Span::styled(content, style),
             ]);
             let right = Line::default();
             (left, right)
@@ -330,12 +385,13 @@ fn render_sbs_diff_line(
                 .new_lineno
                 .map(|n| format!("{n:>LINE_NUM_WIDTH$}"))
                 .unwrap_or(" ".repeat(LINE_NUM_WIDTH));
+            let content = truncate_to_width(&line.content, content_max);
             let style = Theme::added_line_bg().patch(sel);
             let left = Line::default();
             let right = Line::from(vec![
                 Span::styled(num, Theme::line_number().patch(sel)),
                 Span::styled(" +", style),
-                Span::styled(line.content.clone(), style),
+                Span::styled(content, style),
             ]);
             (left, right)
         }

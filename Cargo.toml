@@ -5,14 +5,15 @@ edition = "2024"
 description = "Terminal UI for reviewing GitHub pull requests"
 
 [dependencies]
-ratatui = "0.29"
-crossterm = "0.28"
+ratatui = "0.30"
+crossterm = "0.29"
 tokio = { version = "1", features = ["full"] }
 tokio-util = "0.7"
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-tui-textarea = "0.7"
+tui-textarea = { package = "tui-textarea-2", version = "0.10" }
+tui-markdown = "0.3"
 base64 = "0.22"
 unicode-width = "0.2"
 anyhow = "1"
