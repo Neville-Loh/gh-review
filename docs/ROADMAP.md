@@ -5,7 +5,8 @@
 ```mermaid
 graph LR
     M1["M1: Read-only Diff"] --> M2["M2: Review Actions"]
-    M2 --> M3["M3: Stacked PR Support"]
+    M2 --> M25["M2.5: Comment Management"]
+    M25 --> M3["M3: Stacked PR Support"]
     M3 --> M4["M4: Polish"]
     M4 --> M5["M5: gh-dash-rs Integration"]
 ```
@@ -49,11 +50,29 @@ graph TD
 
 - Inline comment textarea anchored to cursor line
 - Pending review model — batch comments, submit as one review
-- Approve, request changes, and comment-only submission
+- Approve, request changes, and comment-only submission with confirmation popup
 - Existing review comments displayed inline in the diff
 - Expandable context — fetch full file content and splice +10 lines
+- Expand/collapse multi-line comments with Enter
+- Vim-style navigation (gg, G, H/M/L, ]/[, zz/zt/zb, Ctrl+F/B)
+- Clean process shutdown (works as gh-dash subprocess)
 
-### M3 — Stacked PR Support (next)
+### M2.5 — Comment Management (next)
+
+```mermaid
+graph TD
+    subgraph m25 [M2.5: Comment Management]
+        CM1[Discard pending comment] --> CM2["Remove from pending list, rebuild display"]
+        CM3[Edit pending comment] --> CM4["Re-open textarea with existing body"]
+        CM5[Expand/collapse comments] --> CM6["Enter toggles, ▶/▼ indicator (done)"]
+    end
+```
+
+- **Discard pending comment** — cursor on a pending comment, press `x` or `d` to remove it from the pending review
+- **Edit pending comment** — cursor on a pending comment, press `c` or `e` to re-open the textarea pre-filled with the existing body
+- Expand/collapse multi-line comments — done (Enter to toggle)
+
+### M3 — Stacked PR Support
 
 Graphite stacked PRs require reviewing each PR against its parent branch (not main), navigating between PRs in a stack, and understanding where a PR sits in the dependency chain.
 
@@ -156,6 +175,14 @@ graph LR
         F6[Expand context]
         F7[Existing comment display]
         F8[Help overlay]
+        Fv[Vim navigation]
+        Fec[Expand/collapse comments]
+        Frc[Review confirmation popup]
+    end
+
+    subgraph next25 [Next: Comment Management]
+        Fd[Discard pending comment]
+        Fe[Edit pending comment]
     end
 
     subgraph next [Next: Stacked PRs]
