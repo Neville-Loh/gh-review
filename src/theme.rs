@@ -44,13 +44,22 @@ impl Theme {
     }
 
     pub fn selected_line() -> Style {
-        Style::default().bg(Color::Rgb(40, 40, 60))
+        Style::default()
+            .bg(Color::Rgb(50, 50, 80))
+            .add_modifier(Modifier::BOLD)
+    }
+
+    pub fn selected_cursor() -> Style {
+        Style::default()
+            .fg(Color::Rgb(100, 140, 255))
+            .bg(Color::Rgb(50, 50, 80))
+            .add_modifier(Modifier::BOLD)
     }
 
     pub fn file_list_selected() -> Style {
         Style::default()
             .fg(Color::White)
-            .bg(Color::Rgb(40, 40, 60))
+            .bg(Color::Rgb(50, 50, 80))
             .add_modifier(Modifier::BOLD)
     }
 

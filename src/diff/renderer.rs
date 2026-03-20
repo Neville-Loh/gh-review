@@ -157,18 +157,11 @@ pub fn render_unified_row(row: &DisplayRow, _width: u16, is_selected: bool) -> L
     };
 
     if is_selected {
-        Line::from(
-            base_line
-                .spans
-                .into_iter()
-                .map(|s| {
-                    Span::styled(
-                        s.content,
-                        s.style.patch(Theme::selected_line()),
-                    )
-                })
-                .collect::<Vec<_>>(),
-        )
+        let mut spans = vec![Span::styled("▌", Theme::selected_cursor())];
+        spans.extend(base_line.spans.into_iter().map(|s| {
+            Span::styled(s.content, s.style.patch(Theme::selected_line()))
+        }));
+        Line::from(spans)
     } else {
         base_line
     }
