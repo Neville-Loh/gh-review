@@ -150,6 +150,18 @@ impl App {
                 self.status_is_error = false;
                 self.pending_comments.clear();
                 self.rebuild_display();
+                // Re-fetch comments so submitted ones appear as existing
+                let tx = self.tx.clone();
+                let repo = self.repo.clone();
+                let pr = self.pr_number;
+                tokio::spawn(async move {
+                    match crate::gh::fetch_review_comments(&repo, pr).await {
+                        Ok(comments) => {
+                            let _ = tx.send(AppEvent::CommentsLoaded(comments));
+                        }
+                        Err(_) => {}
+                    }
+                });
             }
             AppEvent::Error(msg) => {
                 self.status_msg = msg;
