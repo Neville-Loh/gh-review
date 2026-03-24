@@ -135,3 +135,17 @@ src/
 ```
 
 All GitHub API calls go through the `gh` CLI, reusing your existing authentication. No tokens or OAuth configuration needed.
+
+## Roadmap
+
+See [docs/ROADMAP.md](docs/ROADMAP.md) for planned features including search, stacked PR support, syntax highlighting, and more.
+
+## Contributing
+
+Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to get started, submit pull requests, and report issues.
+
+This project follows the [Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md).
+
+## License
+
+[MIT](LICENSE)

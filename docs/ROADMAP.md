@@ -6,9 +6,11 @@
 graph LR
     M1["M1: Read-only Diff"] --> M2["M2: Review Actions"]
     M2 --> M25["M2.5: Comment Management"]
-    M25 --> M3["M3: Stacked PR Support"]
+    M25 --> M26["M2.6: Search"]
+    M26 --> M3["M3: Stacked PR Support"]
     M3 --> M4["M4: Polish"]
-    M4 --> M5["M5: gh-dash-rs Integration"]
+    M4 --> M45["M4.5: User Configuration"]
+    M45 --> M5["M5: gh-dash-rs Integration"]
 ```
 
 ## Milestones
@@ -72,6 +74,40 @@ graph TD
 - **Edit pending comment** — cursor on a pending comment, press `c` or `e` to re-open the textarea pre-filled with the existing body
 - Expand/collapse multi-line comments — done (Enter to toggle)
 
+### M2.6 — Search
+
+Vim-style search across diff content and file names, matching the `/` and `?` patterns familiar to vim and less users.
+
+```mermaid
+graph TD
+    subgraph m26 [M2.6: Search]
+        SR1["/ forward search prompt"] --> SR2[Regex + literal matching engine]
+        SR3["? backward search prompt"] --> SR2
+        SR2 --> SR4["Highlight all matches in diff viewport"]
+        SR4 --> SR5["n / N jump to next / previous match"]
+        SR6["File picker search: type to filter"] --> SR7["Fuzzy-match file names"]
+    end
+```
+
+**Diff search (`/` and `?`)**
+- `/` opens a search prompt at the bottom of the screen (forward search)
+- `?` opens search in reverse direction (when help overlay is not active)
+- Supports literal and regex patterns
+- All matches highlighted in the diff viewport with a distinct style
+- `n` jumps to next match, `N` jumps to previous match
+- Search wraps around at end/beginning of diff
+- `Esc` or `Enter` on empty input exits search mode
+- Matches persist until a new search or explicit clear
+
+**File picker search**
+- When file picker is focused, typing `/` activates a filter prompt
+- Fuzzy matching against file paths (e.g. `comp/diff` matches `src/components/diff_view.rs`)
+- Filtered list updates as you type, press `Enter` to select, `Esc` to cancel
+
+**Keybinding considerations**
+- `n`/`N` currently navigate files — when a search is active, they switch to search navigation; when no search is active, they retain file navigation behavior
+- `?` currently shows help — resolve by using `?` for search only in diff view and keeping `?` for help in other contexts, or by moving help to `F1`
+
 ### M3 — Stacked PR Support
 
 Graphite stacked PRs require reviewing each PR against its parent branch (not main), navigating between PRs in a stack, and understanding where a PR sits in the dependency chain.
@@ -127,7 +163,6 @@ graph TD
         C5[Reply to existing threads]
         C6[Resolve/unresolve threads]
         C7[Word-level diff highlighting]
-        C8[Configurable keybindings]
         C9[Status line: review state + checks]
     end
 ```
@@ -136,8 +171,71 @@ graph TD
 - Word-level diff within changed lines (highlight the exact characters that changed)
 - Multi-line comment selection (visual select a range, then comment)
 - Reply to and resolve existing review threads
-- Configurable keybindings via config file
 - Status line showing PR review state and CI check status
+
+### M4.5 — User Configuration
+
+User-facing config file (`~/.config/gh-review/config.toml`) for personalizing the tool without recompiling.
+
+```mermaid
+graph TD
+    subgraph m45 [M4.5: User Configuration]
+        UC1["Config file loader (~/.config/gh-review/config.toml)"] --> UC2[Remappable keybindings]
+        UC1 --> UC3[Custom color themes]
+        UC1 --> UC4[Custom scripts via hooks]
+        UC3 --> UC5["Built-in themes (dark / light / high-contrast)"]
+        UC3 --> UC6["User-defined color overrides"]
+        UC4 --> UC7["on_submit / on_approve / on_open hooks"]
+    end
+```
+
+**Config file**
+- TOML config at `~/.config/gh-review/config.toml` (XDG-compliant)
+- CLI flags override config values
+- Sensible defaults when no config file exists
+
+**Remappable keybindings**
+- Every action (scroll, comment, submit, search, etc.) can be rebound
+- Config section `[keys]` with action-name = key-combo mapping
+- Support modifier combinations (Ctrl, Alt, Shift)
+- Validation on startup — warn on conflicts or unknown actions
+
+```toml
+[keys]
+scroll_down = "j"
+scroll_up = "k"
+submit_approve = "a"
+search_forward = "/"
+next_file = "n"
+```
+
+**Custom themes**
+- Built-in themes: dark (default), light, high-contrast
+- Select via config: `theme = "light"`
+- Full color override via `[theme.colors]` section for diff add/remove, comments, UI chrome, search highlights
+- Terminal capability detection (256-color, truecolor, basic)
+
+```toml
+theme = "dark"
+
+[theme.colors]
+add_bg = "#1a3a1a"
+remove_bg = "#3a1a1a"
+comment_fg = "#f0c674"
+search_match = "#ffcc00"
+```
+
+**Custom scripts**
+- Hook system: run user-defined shell commands on review lifecycle events
+- Supported hooks: `on_open`, `on_submit`, `on_approve`, `on_request_changes`, `on_quit`
+- Scripts receive context as environment variables (`GH_REVIEW_REPO`, `GH_REVIEW_PR`, `GH_REVIEW_ACTION`)
+- Async execution — scripts run in background, don't block the UI
+
+```toml
+[hooks]
+on_approve = "notify-send 'PR approved' '$GH_REVIEW_REPO#$GH_REVIEW_PR'"
+on_submit = "~/.config/gh-review/scripts/post-review.sh"
+```
 
 ### M5 — gh-dash-rs Integration (future)
 
@@ -185,6 +283,14 @@ graph LR
         Fe[Edit pending comment]
     end
 
+    subgraph next26 [Next: Search]
+        Fs1["/ forward search in diff"]
+        Fs2["? backward search in diff"]
+        Fs3["n / N jump between matches"]
+        Fs4[Regex + literal matching]
+        Fs5[File picker fuzzy filter]
+    end
+
     subgraph next [Next: Stacked PRs]
         F9[Stack detection via gt CLI]
         F10[Stack navigator panel]
@@ -199,7 +305,13 @@ graph LR
         F16[Word-level diff]
         F17[Multi-line comments]
         F18[Reply to threads]
-        F19[Configurable keys]
+    end
+
+    subgraph later45 [Later: User Configuration]
+        F19[Remappable keybindings]
+        F19b[Custom themes]
+        F19c[Custom script hooks]
+        F19d[TOML config file]
     end
 
     subgraph future [Future]
