@@ -3,6 +3,13 @@ name = "gh-review"
 version = "0.1.0"
 edition = "2024"
 description = "Terminal UI for reviewing GitHub pull requests"
+license = "MIT"
+repository = "https://github.com/Neville-Loh/gh-review"
+homepage = "https://github.com/Neville-Loh/gh-review"
+authors = ["Neville Loh"]
+readme = "README.md"
+keywords = ["github", "pull-request", "code-review", "tui", "terminal"]
+categories = ["command-line-utilities", "development-tools"]
 
 [dependencies]
 ratatui = "0.30"
