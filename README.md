@@ -7,7 +7,7 @@ Terminal UI for reviewing GitHub pull requests. View diffs (unified and side-by-
 ## Install
 
 ```bash
-cargo install --path .
+cargo install gh-review
 ```
 
 Requires the [GitHub CLI](https://cli.github.com/) (`gh`) to be installed and authenticated.
