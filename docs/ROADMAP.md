@@ -11,6 +11,7 @@ graph LR
     M3 --> M4["M4: Polish"]
     M4 --> M45["M4.5: User Configuration"]
     M45 --> M5["M5: gh-dash-rs Integration"]
+    M5 --> M6["M6: Rich Navigation & Agent Review"]
 ```
 
 ## Milestones
@@ -260,6 +261,63 @@ graph TD
 - Seamless transition: PR list → review view → back, no process suspension
 - Stack-aware PR grouping in the dashboard list view
 
+### M6 — Rich Navigation & Agent Review (future)
+
+Clone the PR's repo into a local worktree so reviewers can navigate full source context — not just the diff. Optionally hand the worktree to an AI agent for automated review.
+
+```mermaid
+graph TD
+    subgraph m6 [M6: Rich Navigation & Agent Review]
+        RN1["Clone / fetch repo on PR open"] --> RN2["Create git worktree at PR head ref"]
+        RN2 --> RN3["Source browser: tree view + file viewer"]
+        RN3 --> RN4["Jump from diff line to full file context"]
+        RN2 --> RN5["Agent mode: pass worktree to AI reviewer"]
+        RN5 --> RN6["Agent writes review comments back"]
+        RN7["Worktree lifecycle management"] --> RN2
+        RN7 --> RN8["Cleanup on quit / TTL expiry"]
+    end
+```
+
+**Repo checkout**
+- On PR open, clone (or fetch into existing clone) the repo into a managed cache directory
+- Create a git worktree checked out at the PR's head commit — isolated from any user working copy
+- Worktrees are named by `repo/pr-number` and reused across sessions
+- Shallow clone by default (`--depth=1 --single-branch`) to minimize disk and network; full clone opt-in via config
+
+**Source navigation (user)**
+- New panel: source tree browser showing the full repo file tree at the PR's head ref
+- Open any file in a read-only viewer with syntax highlighting (reuses M4 syntect integration)
+- Jump from a diff line directly to the full file at that line — see surrounding context without the expand-10-lines limitation
+- Search across the full repo source (extends M2.6 search to non-diff files)
+- Keybinding: `gd` — "go to definition" jumps from diff to source view; `gf` — "go to file" opens the tree browser
+
+**Agent review mode**
+- `--agent <command>` CLI flag passes the worktree path to an external AI review tool
+- The agent receives: worktree path, list of changed files, PR metadata (title, description, base branch)
+- Agent output is parsed as review comments and displayed inline in the diff, same as human comments
+- Supports any agent that accepts a directory and outputs structured review JSON (GitHub review comment format)
+- Built-in integration template for common agents (e.g. Claude, Copilot CLI, custom scripts)
+
+```bash
+gh-review octocat/hello-world 42 --agent "my-review-agent"
+```
+
+Environment variables available to the agent:
+```
+GH_REVIEW_WORKTREE=/tmp/gh-review/octocat-hello-world/pr-42
+GH_REVIEW_REPO=octocat/hello-world
+GH_REVIEW_PR=42
+GH_REVIEW_BASE=main
+GH_REVIEW_HEAD=feature-branch
+GH_REVIEW_CHANGED_FILES=src/app.rs,src/types.rs
+```
+
+**Worktree lifecycle**
+- Worktrees stored in `~/.cache/gh-review/worktrees/`
+- Automatic cleanup: remove worktrees older than configurable TTL (default 7 days)
+- Manual cleanup: `gh-review clean` command
+- Disk usage shown in status bar when a worktree is active
+
 ## Feature Matrix
 
 ```mermaid
@@ -318,5 +376,13 @@ graph LR
         F20[gh-dash-rs native view]
         F21[Suggest changes]
         F22[Stack-aware PR grouping]
+    end
+
+    subgraph future6 [Future: Rich Nav & Agent]
+        F23[Repo clone + worktree checkout]
+        F24[Source tree browser]
+        F25["gd / gf jump to full source"]
+        F26[Agent review via worktree]
+        F27[Worktree lifecycle + cleanup]
     end
 ```
