@@ -1,6 +1,6 @@
 # gh-review
 
-Terminal UI for reviewing GitHub pull requests. View diffs (unified and side-by-side), comment on specific lines, expand context, and approve — all without leaving the terminal.
+Terminal UI for reviewing GitHub pull requests. View diffs (unified and side-by-side), comment on lines, suggest changes, resolve threads, expand context, and approve — all without leaving the terminal.
 
 ![gh-review screenshot](docs/screenshot.png)
 
@@ -101,20 +101,26 @@ In the file picker, `/` opens a fuzzy file filter instead.
 | Key | Action |
 |-----|--------|
 | `t` | Toggle unified / side-by-side view |
-| `e` | Expand context around cursor (+10 lines) |
+| `e` | Suggest change on current line |
+| `E` | Expand context around cursor (+10 lines) |
 
 ### Review
 
 | Key | Action |
 |-----|--------|
-| `c` | Comment on current line |
-| `Ctrl+S` | Save comment (in comment editor) |
-| `Esc` | Cancel comment |
-| `a` | Submit review — approve |
-| `r` | Submit review — request changes |
-| `s` | Submit review — comment only |
+| `c` | Comment on current line (or edit pending comment) |
+| `v` | Visual select mode for multi-line comments |
+| `x` | Discard pending comment at cursor |
+| `Ctrl+S` | Save comment / confirm review submission |
+| `Esc` | Cancel comment / cancel visual selection |
+| `a` | Submit review — approve (with optional body) |
+| `r` | Submit review — request changes (with optional body) |
+| `s` | Submit review — comment only (with optional body) |
+| `u` | Unapprove — dismiss your own approval |
+| `R` | Resolve / unresolve comment thread |
+| `y` | Accept suggestion (apply as commit) |
 
-Comments are batched into a pending review and submitted together when you press `a`, `r`, or `s`. This matches GitHub's review model.
+Comments are batched into a pending review and submitted together when you press `a`, `r`, or `s`. The review submission popup includes a textarea for an optional review body. This matches GitHub's review model.
 
 ### Other
 

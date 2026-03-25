@@ -16,6 +16,10 @@ pub struct CommentInput {
     pub side: crate::types::Side,
     pub reply_to_id: Option<u64>,
     pub reply_author: String,
+    pub editing_pending_idx: Option<usize>,
+    pub is_suggestion: bool,
+    pub start_line: Option<usize>,
+    pub start_side: Option<crate::types::Side>,
 }
 
 pub enum CommentAction {
@@ -36,6 +40,10 @@ impl CommentInput {
             side: crate::types::Side::Right,
             reply_to_id: None,
             reply_author: String::new(),
+            editing_pending_idx: None,
+            is_suggestion: false,
+            start_line: None,
+            start_side: None,
         }
     }
 
@@ -47,6 +55,10 @@ impl CommentInput {
         self.side = side;
         self.reply_to_id = None;
         self.reply_author.clear();
+        self.editing_pending_idx = None;
+        self.is_suggestion = false;
+        self.start_line = None;
+        self.start_side = None;
         self.visible = true;
     }
 
@@ -55,7 +67,123 @@ impl CommentInput {
         self.textarea.set_cursor_line_style(Style::default());
         self.reply_to_id = Some(comment_id);
         self.reply_author = author;
+        self.editing_pending_idx = None;
+        self.is_suggestion = false;
+        self.start_line = None;
+        self.start_side = None;
         self.visible = true;
+    }
+
+    pub fn open_suggestion(
+        &mut self,
+        file_path: String,
+        line: usize,
+        side: crate::types::Side,
+        original_content: &str,
+    ) {
+        let content = original_content.strip_prefix(' ').unwrap_or(original_content);
+        let lines = vec![content.to_string()];
+        self.textarea = TextArea::new(lines);
+        self.textarea.set_cursor_line_style(Style::default());
+        self.file_path = file_path;
+        self.line = line;
+        self.side = side;
+        self.reply_to_id = None;
+        self.reply_author.clear();
+        self.editing_pending_idx = None;
+        self.is_suggestion = true;
+        self.start_line = None;
+        self.start_side = None;
+        self.visible = true;
+    }
+
+    pub fn open_suggestion_range(
+        &mut self,
+        file_path: String,
+        start_line: usize,
+        start_side: crate::types::Side,
+        end_line: usize,
+        end_side: crate::types::Side,
+        original_content: &str,
+    ) {
+        let lines: Vec<String> = original_content.lines().map(String::from).collect();
+        let lines = if lines.is_empty() {
+            vec![String::new()]
+        } else {
+            lines
+        };
+        self.textarea = TextArea::new(lines);
+        self.textarea.set_cursor_line_style(Style::default());
+        self.file_path = file_path;
+        self.line = end_line;
+        self.side = end_side;
+        self.reply_to_id = None;
+        self.reply_author.clear();
+        self.editing_pending_idx = None;
+        self.is_suggestion = true;
+        self.start_line = Some(start_line);
+        self.start_side = Some(start_side);
+        self.visible = true;
+    }
+
+    pub fn open_range(
+        &mut self,
+        file_path: String,
+        start_line: usize,
+        start_side: crate::types::Side,
+        end_line: usize,
+        end_side: crate::types::Side,
+    ) {
+        self.textarea = TextArea::default();
+        self.textarea.set_cursor_line_style(Style::default());
+        self.file_path = file_path;
+        self.line = end_line;
+        self.side = end_side;
+        self.reply_to_id = None;
+        self.reply_author.clear();
+        self.editing_pending_idx = None;
+        self.is_suggestion = false;
+        self.start_line = Some(start_line);
+        self.start_side = Some(start_side);
+        self.visible = true;
+    }
+
+    pub fn open_edit(
+        &mut self,
+        pending_idx: usize,
+        file_path: String,
+        line: usize,
+        side: crate::types::Side,
+        body: &str,
+    ) {
+        let lines: Vec<String> = body.lines().map(String::from).collect();
+        let lines = if lines.is_empty() {
+            vec![String::new()]
+        } else {
+            lines
+        };
+        self.textarea = TextArea::new(lines);
+        self.textarea.set_cursor_line_style(Style::default());
+        self.file_path = file_path;
+        self.line = line;
+        self.side = side;
+        self.reply_to_id = None;
+        self.reply_author.clear();
+        self.editing_pending_idx = Some(pending_idx);
+        self.is_suggestion = false;
+        self.start_line = None;
+        self.start_side = None;
+        self.visible = true;
+    }
+
+    fn submit(&mut self) -> CommentAction {
+        let text = self.textarea.lines().join("\n").trim().to_string();
+        if text.is_empty() {
+            self.visible = false;
+            return CommentAction::Cancel;
+        }
+        self.visible = false;
+        CommentAction::Submit(text)
     }
 
     pub fn handle_input(&mut self, input: Input) -> CommentAction {
@@ -68,15 +196,7 @@ impl CommentInput {
                 key: Key::Char('s'),
                 ctrl: true,
                 ..
-            } => {
-                let text = self.textarea.lines().join("\n").trim().to_string();
-                if text.is_empty() {
-                    self.visible = false;
-                    return CommentAction::Cancel;
-                }
-                self.visible = false;
-                CommentAction::Submit(text)
-            }
+            } => self.submit(),
             input => {
                 self.textarea.input(input);
                 CommentAction::None
@@ -101,6 +221,10 @@ impl CommentInput {
 
         let title = if self.reply_to_id.is_some() {
             format!(" Reply to @{} ", self.reply_author)
+        } else if self.editing_pending_idx.is_some() {
+            format!(" Edit comment on {}:{} ", self.file_path, self.line)
+        } else if self.is_suggestion {
+            format!(" Suggest change on {}:{} ", self.file_path, self.line)
         } else {
             format!(" Comment on {}:{} ", self.file_path, self.line)
         };

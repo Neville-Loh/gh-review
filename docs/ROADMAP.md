@@ -7,10 +7,10 @@
 | M1 — Read-only Diff Viewer | Parse diffs, unified + side-by-side rendering, file picker | done |
 | M2 — Review Actions | Inline comments, pending review submit, expand context, syntax highlighting | done |
 | M2.6 — Search | Regex search with smart-case, match highlighting, file picker filter | done |
-| M3 — Full Review Comments | Resolve/unresolve threads, suggestion diffs, review body, unapprove | **next** |
-| M4 — Claude Review | AI-powered code review via Claude API, inline comment display | planned |
+| M3 — Full Review Comments | Resolve/unresolve threads, suggestion diffs, review body, unapprove | done |
+| M4 — Claude Review | AI-powered code review via Claude API, inline comment display | **next** |
 | M5 — Graphite Stacked PRs | Stack detection, navigate between PRs, diff against parent branch | planned |
-| M6 — Polish | Word-level diff, multi-line comments, status line | later |
+| M6 — Polish | Word-level diff, status line | later |
 | M7 — User Configuration | TOML config, remappable keybindings, custom themes, script hooks | later |
 | M8 — gh-dash-rs Integration | Library crate extraction, native view inside gh-dash Rust rewrite | future |
 | M9 — AI Chat Panel | Side-by-side chat panel for discussing code with Claude while reviewing | future |
@@ -96,7 +96,7 @@ graph TD
 - `?` opens backward search in diff view, shows help overlay in file picker
 - Help is also available via `F1` in all contexts
 
-### M3 — Full Review Comments (next)
+### M3 — Full Review Comments (done)
 
 Complete the review comment workflow to cover all standard GitHub review operations.
 
@@ -138,7 +138,14 @@ graph TD
 - Discard pending comment — cursor on a pending comment, press `x` to remove from the pending review
 - Edit pending comment — cursor on a pending comment, press `c` to re-open the textarea pre-filled with the existing body
 
-### M4 — Claude Review (planned)
+**Multi-line comment selection** (pulled forward from M6)
+- Press `v` to enter visual select mode (vim-style)
+- Navigate to extend the selection; highlighted range shown in the diff
+- Press `c` to comment on the selected line range
+- `Esc` or `v` again to cancel visual selection
+- GitHub API `start_line` and `start_side` fields used for multi-line comment ranges
+
+### M4 — Claude Review (**next**)
 
 AI-powered code review using Claude. Send the PR diff and context to Claude for automated review feedback displayed inline.
 
@@ -221,14 +228,12 @@ gh-review ROKT/srs --stack 1234 1235 1236  # explicit stack order
 ```mermaid
 graph TD
     subgraph m6 [M6: Polish]
-        C3[Multi-line comment selection] --> C4["start_line + line range"]
         C7[Word-level diff highlighting]
         C9[Status line: review state + checks]
     end
 ```
 
 - Word-level diff within changed lines (highlight the exact characters that changed)
-- Multi-line comment selection (visual select a range, then comment)
 - Status line showing PR review state and CI check status
 
 ### M7 — User Configuration (later)
@@ -350,13 +355,14 @@ Side-by-side chat panel for discussing code with Claude while reviewing a PR.
 | done | Regex + smart-case matching |
 | done | File picker filter |
 | done | Syntax highlighting |
-| **next** | Resolve / unresolve comment threads |
-| **next** | Suggestion diffs (render + create + accept) |
-| **next** | Approve / request changes with body |
-| **next** | Unapprove with body |
-| **next** | Discard pending comment |
-| **next** | Edit pending comment |
-| planned | Claude AI review |
+| done | Resolve / unresolve comment threads |
+| done | Suggestion diffs (render + create + accept) |
+| done | Approve / request changes with body |
+| done | Unapprove with body |
+| done | Discard pending comment |
+| done | Edit pending comment |
+| done | Multi-line comments (visual select) |
+| **next** | Claude AI review |
 | planned | Stack detection via gt CLI |
 | planned | Stack navigator panel |
 | planned | Jump between stack PRs |
@@ -364,7 +370,6 @@ Side-by-side chat panel for discussing code with Claude while reviewing a PR.
 | planned | Cumulative vs incremental toggle |
 | planned | Stack overview sidebar |
 | later | Word-level diff |
-| later | Multi-line comments |
 | later | Remappable keybindings |
 | later | Custom themes |
 | later | Custom script hooks |

@@ -78,6 +78,8 @@ pub struct ReviewComment {
     pub line: usize,
     pub side: Side,
     pub body: String,
+    pub start_line: Option<usize>,
+    pub start_side: Option<Side>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -85,6 +87,7 @@ pub enum ReviewEvent {
     Approve,
     RequestChanges,
     Comment,
+    Unapprove,
 }
 
 impl ReviewEvent {
@@ -93,6 +96,7 @@ impl ReviewEvent {
             Self::Approve => "APPROVE",
             Self::RequestChanges => "REQUEST_CHANGES",
             Self::Comment => "COMMENT",
+            Self::Unapprove => "DISMISS",
         }
     }
 
@@ -101,6 +105,7 @@ impl ReviewEvent {
             Self::Approve => "Approve",
             Self::RequestChanges => "Request Changes",
             Self::Comment => "Comment",
+            Self::Unapprove => "Unapprove",
         }
     }
 }
@@ -165,4 +170,19 @@ pub struct ExistingComment {
 pub struct FileContent {
     pub content: String,
     pub encoding: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ThreadInfo {
+    pub thread_node_id: String,
+    pub is_resolved: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PrReview {
+    pub id: u64,
+    pub user: PrUser,
+    pub state: String,
+    #[serde(default)]
+    pub body: Option<String>,
 }

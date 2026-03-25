@@ -1,7 +1,7 @@
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
-    text::Line,
+    text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Widget},
 };
 
@@ -24,7 +24,12 @@ impl DiffView {
             DiffMode::SideBySide => "side-by-side",
         };
 
-        let title = format!(" Diff ({mode_label}) ");
+        let visual_label = if self.is_visual_mode() {
+            " -- VISUAL --"
+        } else {
+            ""
+        };
+        let title = format!(" Diff ({mode_label}){visual_label} ");
         let block = Block::default()
             .title(title)
             .borders(Borders::ALL)
@@ -63,6 +68,7 @@ impl DiffView {
     fn draw_unified(&self, area: Rect, buf: &mut Buffer, scroll: usize, visible_height: usize) {
         let end = (scroll + visible_height).min(self.display_rows.len());
         let visible = &self.display_rows[scroll..end];
+        let visual = self.visual_range();
 
         let lines: Vec<Line> = visible
             .iter()
@@ -70,8 +76,19 @@ impl DiffView {
             .map(|(i, row)| {
                 let global_idx = scroll + i;
                 let selected = global_idx == self.cursor;
-                let line = render_unified_row(row, &self.files, area.width, selected);
-                self.search.highlight(line, global_idx)
+                let mut line = render_unified_row(row, &self.files, area.width, selected);
+                line = self.search.highlight(line, global_idx);
+                if let Some((lo, hi)) = visual {
+                    if global_idx >= lo && global_idx <= hi && !selected {
+                        line = Line::from(
+                            line.spans
+                                .into_iter()
+                                .map(|s| Span::styled(s.content, s.style.patch(Theme::visual_select())))
+                                .collect::<Vec<_>>(),
+                        );
+                    }
+                }
+                line
             })
             .collect();
 

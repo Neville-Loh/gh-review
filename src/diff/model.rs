@@ -1,6 +1,8 @@
+use std::collections::HashMap;
+
 use ratatui::text::{Line, Span};
 
-use crate::types::{DiffFile, DiffLine, ExistingComment, LineKind, ReviewComment, Side};
+use crate::types::{DiffFile, DiffLine, ExistingComment, LineKind, ReviewComment, Side, ThreadInfo};
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -30,6 +32,9 @@ pub enum DisplayRow {
         is_pending: bool,
         comment_id: usize,
         github_id: Option<u64>,
+        pending_idx: Option<usize>,
+        thread_node_id: Option<String>,
+        is_resolved: bool,
         expanded: bool,
         body_preview: String,
         body_lines: usize,
@@ -42,6 +47,11 @@ pub enum DisplayRow {
     CommentFooter {
         is_reply: bool,
     },
+    SuggestionDiff {
+        original: String,
+        suggested: String,
+        github_id: Option<u64>,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -49,6 +59,25 @@ pub enum DisplayRow {
 pub enum ExpandDirection {
     Up,
     Down,
+}
+
+fn extract_suggestion(body: &str) -> Option<String> {
+    let mut in_suggestion = false;
+    let mut suggestion_lines = Vec::new();
+
+    for line in body.lines() {
+        if line.trim() == "```suggestion" || line.trim().starts_with("```suggestion ") {
+            in_suggestion = true;
+            continue;
+        }
+        if in_suggestion {
+            if line.trim() == "```" {
+                return Some(suggestion_lines.join("\n"));
+            }
+            suggestion_lines.push(line.to_string());
+        }
+    }
+    None
 }
 
 fn render_markdown_to_lines(body: &str) -> Vec<Line<'static>> {
@@ -71,6 +100,7 @@ pub fn build_display_rows(
     existing_comments: &[ExistingComment],
     pending_comments: &[ReviewComment],
     expanded_comments: &std::collections::HashSet<usize>,
+    thread_map: &HashMap<u64, ThreadInfo>,
 ) -> Vec<DisplayRow> {
     let mut rows = Vec::new();
     let mut comment_id_counter: usize = 0;
@@ -118,16 +148,32 @@ pub fn build_display_rows(
                         let body_lines = ec.body.lines().count();
                         let is_reply = ec.in_reply_to_id.is_some();
 
+                        let root_id = ec.in_reply_to_id.unwrap_or(ec.id);
+                        let thread_info = thread_map.get(&root_id);
+                        let thread_node_id = thread_info.map(|t| t.thread_node_id.clone());
+                        let is_resolved = thread_info.map(|t| t.is_resolved).unwrap_or(false);
+
                         rows.push(DisplayRow::CommentHeader {
                             author: ec.user.login.clone(),
                             is_pending: false,
                             comment_id: cid,
                             github_id: Some(ec.id),
+                            pending_idx: None,
+                            thread_node_id,
+                            is_resolved,
                             expanded: is_expanded,
                             body_preview: preview,
                             body_lines,
                             is_reply,
                         });
+
+                        if let Some(suggested) = extract_suggestion(&ec.body) {
+                            rows.push(DisplayRow::SuggestionDiff {
+                                original: line.content.clone(),
+                                suggested,
+                                github_id: Some(ec.id),
+                            });
+                        }
 
                         if is_expanded {
                             let md_lines = render_markdown_to_lines(&ec.body);
@@ -138,7 +184,7 @@ pub fn build_display_rows(
                         }
                     }
 
-                    for pc in pending_comments.iter().filter(|c| {
+                    for (pc_idx, pc) in pending_comments.iter().enumerate().filter(|(_, c)| {
                         c.path == file.path && c.line == lineno && c.side == target_side
                     }) {
                         let cid = comment_id_counter;
@@ -152,6 +198,9 @@ pub fn build_display_rows(
                             is_pending: true,
                             comment_id: cid,
                             github_id: None,
+                            pending_idx: Some(pc_idx),
+                            thread_node_id: None,
+                            is_resolved: false,
                             expanded: is_expanded,
                             body_preview: preview,
                             body_lines,
