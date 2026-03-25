@@ -12,6 +12,8 @@ use crate::components::file_picker::FilePicker;
 use crate::components::help::HelpOverlay;
 use crate::components::review_bar::ReviewBar;
 use crate::components::review_confirm::ReviewConfirm;
+use crate::components::search_bar::SearchBar;
+use crate::search::SearchDirection;
 use crate::event::AppEvent;
 use crate::types::{DiffFile, ExistingComment, PrMetadata, ReviewComment, ReviewEvent};
 
@@ -34,6 +36,7 @@ pub struct App {
     diff_view: DiffView,
     comment_input: CommentInput,
     review_confirm: ReviewConfirm,
+    search_bar: SearchBar,
 
     focus: Focus,
     show_help: bool,
@@ -60,6 +63,7 @@ impl App {
             diff_view: DiffView::new(),
             comment_input: CommentInput::new(),
             review_confirm: ReviewConfirm::new(),
+            search_bar: SearchBar::new(),
             focus: Focus::DiffView,
             show_help: false,
             status_msg: String::new(),
@@ -207,10 +211,86 @@ impl App {
             return;
         }
 
+        // Search bar input
+        if self.search_bar.active {
+            match key.code {
+                KeyCode::Enter => {
+                    self.search_bar.close();
+                    let (curr, total) = self.diff_view.search.match_info();
+                    if total > 0 {
+                        self.status_msg = format!(
+                            "/{} [{}/{}]",
+                            self.search_bar.input,
+                            curr + 1,
+                            total
+                        );
+                        self.status_is_error = false;
+                    } else if !self.search_bar.input.is_empty() {
+                        self.status_msg =
+                            format!("Pattern not found: {}", self.search_bar.input);
+                        self.status_is_error = true;
+                    }
+                }
+                KeyCode::Esc => {
+                    if let Some(anchor) = self.diff_view.search.anchor() {
+                        self.diff_view.cursor = anchor;
+                    }
+                    self.diff_view.search.clear();
+                    self.search_bar.close();
+                    self.status_msg.clear();
+                }
+                KeyCode::Backspace => {
+                    self.search_bar.pop_char();
+                    let dir = self.search_bar.direction;
+                    self.diff_view.apply_search(&self.search_bar.input, dir);
+                }
+                KeyCode::Char(c) => {
+                    self.search_bar.push_char(c);
+                    let dir = self.search_bar.direction;
+                    self.diff_view.apply_search(&self.search_bar.input, dir);
+                }
+                _ => {}
+            }
+            return;
+        }
+
+        // File picker filter input
+        if self.file_picker.is_filter_active() {
+            match key.code {
+                KeyCode::Enter => {
+                    self.file_picker.confirm_filter();
+                    self.diff_view.goto_file(self.file_picker.selected);
+                }
+                KeyCode::Esc => {
+                    self.file_picker.cancel_filter();
+                }
+                KeyCode::Char('j') | KeyCode::Down => {
+                    self.file_picker.filter_next();
+                    self.diff_view.goto_file(self.file_picker.selected);
+                }
+                KeyCode::Char('k') | KeyCode::Up => {
+                    self.file_picker.filter_prev();
+                    self.diff_view.goto_file(self.file_picker.selected);
+                }
+                KeyCode::Backspace => {
+                    self.file_picker.filter_pop();
+                    self.diff_view.goto_file(self.file_picker.selected);
+                }
+                KeyCode::Char(c) => {
+                    self.file_picker.filter_push(c);
+                    if !self.file_picker.files.is_empty() {
+                        self.diff_view.goto_file(self.file_picker.selected);
+                    }
+                }
+                _ => {}
+            }
+            return;
+        }
+
         // Help overlay
         if self.show_help {
             match key.code {
-                KeyCode::Esc | KeyCode::Char('?') | KeyCode::Char('q') => {
+                KeyCode::Esc | KeyCode::Char('q') | KeyCode::F(1) => {
                     self.show_help = false;
                 }
                 _ => {}
@@ -236,8 +316,37 @@ impl App {
         }
 
         match key.code {
-            KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
-            KeyCode::Char('?') => self.show_help = true,
+            KeyCode::Char('q') => self.should_quit = true,
+            KeyCode::Esc => {
+                if self.diff_view.search.is_active() {
+                    self.diff_view.search.clear();
+                    self.status_msg.clear();
+                } else {
+                    self.should_quit = true;
+                }
+            }
+
+            // Help
+            KeyCode::F(1) => self.show_help = true,
+
+            // Search
+            KeyCode::Char('/') => match self.focus {
+                Focus::DiffView => {
+                    self.diff_view.search.set_anchor(self.diff_view.cursor);
+                    self.search_bar.open(SearchDirection::Forward);
+                }
+                Focus::FilePicker => {
+                    self.file_picker.start_filter();
+                }
+            },
+            KeyCode::Char('?') => {
+                if self.focus == Focus::DiffView {
+                    self.diff_view.search.set_anchor(self.diff_view.cursor);
+                    self.search_bar.open(SearchDirection::Backward);
+                } else {
+                    self.show_help = true;
+                }
+            }
 
             // Focus switching
             KeyCode::Tab => {
@@ -297,15 +406,35 @@ impl App {
             KeyCode::Char(')') => self.diff_view.next_change(),
             KeyCode::Char('(') => self.diff_view.prev_change(),
 
-            // Navigation — file jumping
+            // Navigation — file/search jumping (n/N dual-purpose)
             KeyCode::Char('n') => {
-                self.diff_view.next_file();
+                if self.diff_view.search.is_active() {
+                    let new_cursor = match self.search_bar.direction {
+                        SearchDirection::Forward => self.diff_view.search.next_match(),
+                        SearchDirection::Backward => self.diff_view.search.prev_match(),
+                    };
+                    if let Some(c) = new_cursor {
+                        self.diff_view.cursor = c;
+                    }
+                } else {
+                    self.diff_view.next_file();
+                }
                 if let Some(fi) = self.diff_view.current_file_idx() {
                     self.file_picker.selected = fi;
                 }
             }
             KeyCode::Char('N') => {
-                self.diff_view.prev_file();
+                if self.diff_view.search.is_active() {
+                    let new_cursor = match self.search_bar.direction {
+                        SearchDirection::Forward => self.diff_view.search.prev_match(),
+                        SearchDirection::Backward => self.diff_view.search.next_match(),
+                    };
+                    if let Some(c) = new_cursor {
+                        self.diff_view.cursor = c;
+                    }
+                } else {
+                    self.diff_view.prev_file();
+                }
                 if let Some(fi) = self.diff_view.current_file_idx() {
                     self.file_picker.selected = fi;
                 }
@@ -480,14 +609,20 @@ impl App {
             self.focus == Focus::DiffView,
         );
 
-        // Review bar
-        ReviewBar::draw(
-            main_layout[2],
-            frame.buffer_mut(),
-            self.pending_comments.len(),
-            &self.status_msg,
-            self.status_is_error,
-        );
+        // Review bar / search bar
+        if self.search_bar.active {
+            let (curr, total) = self.diff_view.search.match_info();
+            self.search_bar
+                .draw(main_layout[2], frame.buffer_mut(), curr, total);
+        } else {
+            ReviewBar::draw(
+                main_layout[2],
+                frame.buffer_mut(),
+                self.pending_comments.len(),
+                &self.status_msg,
+                self.status_is_error,
+            );
+        }
 
         // Overlays
         if self.comment_input.visible {

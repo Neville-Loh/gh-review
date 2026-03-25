@@ -142,4 +142,27 @@ impl Theme {
     pub fn error() -> Style {
         Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
     }
+
+    pub fn search_match() -> Style {
+        Style::default()
+            .bg(Color::Rgb(100, 80, 0))
+            .fg(Color::White)
+    }
+
+    pub fn search_current() -> Style {
+        Style::default()
+            .bg(Color::Rgb(200, 150, 0))
+            .fg(Color::Black)
+            .add_modifier(Modifier::BOLD)
+    }
+
+    pub fn search_prompt() -> Style {
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD)
+    }
+
+    pub fn search_count() -> Style {
+        Style::default().fg(Color::DarkGray)
+    }
 }

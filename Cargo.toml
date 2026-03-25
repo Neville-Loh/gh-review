@@ -24,6 +24,7 @@ tui-markdown = "0.3"
 base64 = "0.22"
 unicode-width = "0.2"
 anyhow = "1"
+regex = "1"
 
 # The profile that 'dist' will build with
 [profile.dist]

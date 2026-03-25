@@ -4,3 +4,4 @@ pub mod file_picker;
 pub mod help;
 pub mod review_bar;
 pub mod review_confirm;
+pub mod search_bar;

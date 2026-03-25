@@ -3,6 +3,7 @@ mod components;
 mod diff;
 mod event;
 mod gh;
+mod search;
 mod theme;
 mod types;
 

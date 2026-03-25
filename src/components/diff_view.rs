@@ -6,6 +6,7 @@ use ratatui::{
 };
 
 use crate::diff::renderer::{build_display_rows, render_sbs_row, render_unified_row, DisplayRow};
+use crate::search::{SearchDirection, SearchState};
 use crate::theme::Theme;
 use crate::types::{DiffFile, DiffMode, ExistingComment, ReviewComment};
 use std::collections::HashSet;
@@ -14,6 +15,7 @@ pub struct DiffView {
     pub scroll_offset: usize,
     pub cursor: usize,
     pub mode: DiffMode,
+    pub search: SearchState,
     display_rows: Vec<DisplayRow>,
     expanded_comments: HashSet<usize>,
 }
@@ -24,6 +26,7 @@ impl DiffView {
             scroll_offset: 0,
             cursor: 0,
             mode: DiffMode::Unified,
+            search: SearchState::new(),
             display_rows: Vec::new(),
             expanded_comments: HashSet::new(),
         }
@@ -41,7 +44,21 @@ impl DiffView {
             pending_comments,
             &self.expanded_comments,
         );
+        self.search.recompute(&self.display_rows);
     }
+
+    /// Compile pattern, find matches, and jump cursor to the first hit.
+    /// Thin wrapper so SearchState can access display_rows.
+    pub fn apply_search(&mut self, pattern: &str, direction: SearchDirection) {
+        if let Some(cursor) =
+            self.search
+                .apply(pattern, direction, &self.display_rows, self.cursor)
+        {
+            self.cursor = cursor;
+        }
+    }
+
+    // --- Comment expand ---
 
     /// Toggle expand/collapse if cursor is on a comment row. Returns true if toggled.
     pub fn toggle_comment_expand(&mut self) -> bool {
@@ -60,6 +77,8 @@ impl DiffView {
             false
         }
     }
+
+    // --- Cursor navigation ---
 
     pub fn total_rows(&self) -> usize {
         self.display_rows.len()
@@ -126,7 +145,7 @@ impl DiffView {
         }
     }
 
-    /// Jump to next hunk header (`]` or `}`).
+    /// Jump to next hunk header.
     pub fn next_hunk(&mut self) {
         let start = self.cursor + 1;
         for i in start..self.display_rows.len() {
@@ -137,7 +156,7 @@ impl DiffView {
         }
     }
 
-    /// Jump to previous hunk header (`[` or `{`).
+    /// Jump to previous hunk header.
     pub fn prev_hunk(&mut self) {
         if self.cursor == 0 {
             return;
@@ -178,24 +197,20 @@ impl DiffView {
         }
     }
 
-    /// Move cursor to top of visible area (H in vim).
     pub fn screen_top(&mut self) {
         self.cursor = self.scroll_offset;
     }
 
-    /// Move cursor to middle of visible area (M in vim).
     pub fn screen_middle(&mut self, visible_height: usize) {
         let mid = self.scroll_offset + visible_height / 2;
         self.cursor = mid.min(self.display_rows.len().saturating_sub(1));
     }
 
-    /// Move cursor to bottom of visible area (L in vim).
     pub fn screen_bottom(&mut self, visible_height: usize) {
         let bot = (self.scroll_offset + visible_height).saturating_sub(1);
         self.cursor = bot.min(self.display_rows.len().saturating_sub(1));
     }
 
-    /// Center the viewport on the cursor (zz in vim).
     pub fn center_cursor(&mut self, visible_height: usize) {
         self.scroll_offset = self.cursor.saturating_sub(visible_height / 2);
     }
@@ -206,6 +221,8 @@ impl DiffView {
             DiffMode::SideBySide => DiffMode::Unified,
         };
     }
+
+    // --- Query helpers ---
 
     /// Get info about the current cursor line for commenting.
     pub fn current_line_info(&self) -> Option<CommentTarget> {
@@ -260,6 +277,8 @@ impl DiffView {
         })
     }
 
+    // --- Drawing ---
+
     pub fn draw(&self, area: Rect, buf: &mut Buffer, focused: bool) {
         let border_style = if focused {
             Theme::border_focused()
@@ -281,7 +300,6 @@ impl DiffView {
         let inner = block.inner(area);
         Widget::render(block, area, buf);
 
-        // Clear the inner area to prevent artifacts from previous frames
         for y in inner.y..inner.y + inner.height {
             for x in inner.x..inner.x + inner.width {
                 if let Some(cell) = buf.cell_mut((x, y)) {
@@ -290,7 +308,6 @@ impl DiffView {
             }
         }
 
-        // Ensure cursor is visible
         let visible_height = inner.height as usize;
         let scroll = self.effective_scroll(visible_height);
 
@@ -320,7 +337,8 @@ impl DiffView {
             .map(|(i, row)| {
                 let global_idx = scroll + i;
                 let selected = global_idx == self.cursor;
-                render_unified_row(row, area.width, selected)
+                let line = render_unified_row(row, area.width, selected);
+                self.search.highlight(line, global_idx)
             })
             .collect();
 
@@ -342,7 +360,6 @@ impl DiffView {
         let end = (scroll + visible_height).min(self.display_rows.len());
         let visible = &self.display_rows[scroll..end];
 
-        // Build paired SBS lines by grouping consecutive removed+added blocks
         let mut left_lines: Vec<Line> = Vec::new();
         let mut right_lines: Vec<Line> = Vec::new();
 
@@ -354,7 +371,6 @@ impl DiffView {
                 DisplayRow::DiffLine { line, .. }
                     if line.kind == crate::types::LineKind::Removed =>
                 {
-                    // Collect consecutive removed lines
                     let mut removed = Vec::new();
                     let mut j = i;
                     while j < visible.len() {
@@ -367,7 +383,6 @@ impl DiffView {
                         }
                         break;
                     }
-                    // Collect consecutive added lines that follow
                     let mut added = Vec::new();
                     while j < visible.len() {
                         if let DisplayRow::DiffLine { line: l, .. } = &visible[j] {
@@ -379,21 +394,28 @@ impl DiffView {
                         }
                         break;
                     }
-                    // Pair them up
                     let max_len = removed.len().max(added.len());
                     for k in 0..max_len {
                         let sel_left = removed.get(k).map_or(false, |(gi, _)| *gi == self.cursor);
                         let sel_right = added.get(k).map_or(false, |(gi, _)| *gi == self.cursor);
                         let selected = sel_left || sel_right;
 
-                        let left = removed
+                        let mut left = removed
                             .get(k)
                             .map(|(_, row)| render_sbs_row(row, half_width, selected).0)
                             .unwrap_or_default();
-                        let right = added
+                        let mut right = added
                             .get(k)
                             .map(|(_, row)| render_sbs_row(row, half_width, selected).1)
                             .unwrap_or_default();
+
+                        if let Some((gi, _)) = removed.get(k) {
+                            left = self.search.highlight(left, *gi);
+                        }
+                        if let Some((gi, _)) = added.get(k) {
+                            right = self.search.highlight(right, *gi);
+                        }
+
                         left_lines.push(left);
                         right_lines.push(right);
                     }
@@ -402,14 +424,14 @@ impl DiffView {
                 DisplayRow::DiffLine { .. } => {
                     let selected = global_idx == self.cursor;
                     let (l, r) = render_sbs_row(&visible[i], half_width, selected);
-                    left_lines.push(l);
-                    right_lines.push(r);
+                    left_lines.push(self.search.highlight(l, global_idx));
+                    right_lines.push(self.search.highlight(r, global_idx));
                     i += 1;
                 }
                 _ => {
                     let selected = global_idx == self.cursor;
                     let unified = render_unified_row(&visible[i], area.width, selected);
-                    left_lines.push(unified);
+                    left_lines.push(self.search.highlight(unified, global_idx));
                     right_lines.push(Line::default());
                     i += 1;
                 }
@@ -431,8 +453,6 @@ impl DiffView {
         Widget::render(right_para, layout[2], buf);
     }
 
-    /// Update the internal scroll offset to keep cursor visible.
-    /// Call this after any cursor movement.
     pub fn ensure_visible(&mut self, visible_height: usize) {
         if self.cursor < self.scroll_offset {
             self.scroll_offset = self.cursor;
