@@ -4,7 +4,7 @@ use ratatui::{
 };
 
 use crate::theme::Theme;
-use crate::types::{DiffFile, DiffLine, ExistingComment, LineKind, ReviewComment};
+use crate::types::{DiffFile, DiffLine, ExistingComment, LineKind, ReviewComment, Side};
 
 #[derive(Debug, Clone)]
 pub enum DisplayRow {
@@ -32,6 +32,7 @@ pub enum DisplayRow {
         author: String,
         is_pending: bool,
         comment_id: usize,
+        github_id: Option<u64>,
         expanded: bool,
         body_preview: String,
         body_lines: usize,
@@ -95,15 +96,22 @@ pub fn build_display_rows(
                     line_idx,
                 });
 
-                let target_line = match line.kind {
-                    LineKind::Added | LineKind::Context => line.new_lineno,
-                    LineKind::Removed => line.old_lineno,
+                let (target_line, target_side) = match line.kind {
+                    LineKind::Added | LineKind::Context => (line.new_lineno, Side::Right),
+                    LineKind::Removed => (line.old_lineno, Side::Left),
                 };
 
                 if let Some(lineno) = target_line {
-                    for ec in existing_comments
-                        .iter()
-                        .filter(|c| c.path == file.path && c.line == Some(lineno))
+                    for ec in existing_comments.iter().filter(|c| {
+                        c.path == file.path
+                            && c.line == Some(lineno)
+                            && match (c.side.as_deref(), &target_side) {
+                                (Some("LEFT"), Side::Left)
+                                | (Some("RIGHT"), Side::Right) => true,
+                                (None, _) => true,
+                                _ => false,
+                            }
+                    })
                     {
                         let cid = comment_id_counter;
                         comment_id_counter += 1;
@@ -115,6 +123,7 @@ pub fn build_display_rows(
                             author: ec.user.login.clone(),
                             is_pending: false,
                             comment_id: cid,
+                            github_id: Some(ec.id),
                             expanded: is_expanded,
                             body_preview: preview,
                             body_lines,
@@ -131,7 +140,7 @@ pub fn build_display_rows(
 
                     for pc in pending_comments
                         .iter()
-                        .filter(|c| c.path == file.path && c.line == lineno)
+                        .filter(|c| c.path == file.path && c.line == lineno && c.side == target_side)
                     {
                         let cid = comment_id_counter;
                         comment_id_counter += 1;
@@ -143,6 +152,7 @@ pub fn build_display_rows(
                             author: String::new(),
                             is_pending: true,
                             comment_id: cid,
+                            github_id: None,
                             expanded: is_expanded,
                             body_preview: preview,
                             body_lines,

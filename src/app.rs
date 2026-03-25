@@ -197,13 +197,17 @@ impl App {
             let input: Input = key.into();
             match self.comment_input.handle_input(input) {
                 CommentAction::Submit(body) => {
-                    self.pending_comments.push(ReviewComment {
-                        path: self.comment_input.file_path.clone(),
-                        line: self.comment_input.line,
-                        side: self.comment_input.side,
-                        body,
-                    });
-                    self.rebuild_display();
+                    if let Some(comment_id) = self.comment_input.reply_to_id {
+                        self.submit_reply(comment_id, body);
+                    } else {
+                        self.pending_comments.push(ReviewComment {
+                            path: self.comment_input.file_path.clone(),
+                            line: self.comment_input.line,
+                            side: self.comment_input.side,
+                            body,
+                        });
+                        self.rebuild_display();
+                    }
                 }
                 CommentAction::Cancel => {}
                 CommentAction::None => {}
@@ -450,8 +454,15 @@ impl App {
             // View toggle
             KeyCode::Char('t') => self.diff_view.toggle_mode(),
 
-            // Comment
-            KeyCode::Char('c') => self.start_comment(),
+            // Comment: reply on comment row, new comment on diff line
+            KeyCode::Char('c') => {
+                if let Some(target) = self.diff_view.comment_reply_target() {
+                    self.comment_input
+                        .open_reply(target.github_id, target.author);
+                } else {
+                    self.start_comment();
+                }
+            }
 
             // Expand context or toggle comment
             KeyCode::Char('e') => {
@@ -555,6 +566,32 @@ impl App {
                 }
                 Err(e) => {
                     let _ = tx.send(AppEvent::Error(format!("Submit failed: {e}")));
+                }
+            }
+        });
+    }
+
+    fn submit_reply(&mut self, comment_id: u64, body: String) {
+        let tx = self.tx.clone();
+        let repo = self.repo.clone();
+        let pr = self.pr_number;
+
+        self.status_msg = "Posting reply...".to_string();
+        self.status_is_error = false;
+
+        tokio::spawn(async move {
+            match crate::gh::reply_to_comment(&repo, pr, comment_id, &body).await {
+                Ok(()) => {
+                    let _ = tx.send(AppEvent::ReviewSubmitted);
+                    match crate::gh::fetch_review_comments(&repo, pr).await {
+                        Ok(comments) => {
+                            let _ = tx.send(AppEvent::CommentsLoaded(comments));
+                        }
+                        Err(_) => {}
+                    }
+                }
+                Err(e) => {
+                    let _ = tx.send(AppEvent::Error(format!("Reply failed: {e}")));
                 }
             }
         });
