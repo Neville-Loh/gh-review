@@ -283,6 +283,7 @@ mod tests {
                 old_lineno: None,
                 new_lineno: Some(1),
                 content: content.to_string(),
+                highlighted_content: None,
             },
             file_idx: 0,
             hunk_idx: 0,
