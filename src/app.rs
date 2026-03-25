@@ -543,6 +543,16 @@ impl App {
                             &head_lines,
                             10,
                         );
+
+                        let highlighted = crate::highlight::highlight_content(path, base_content);
+                        for line in &mut hunk.lines {
+                            if line.highlighted_content.is_none() {
+                                if let Some(lineno) = line.old_lineno {
+                                    line.highlighted_content =
+                                        highlighted.get(lineno - 1).cloned();
+                                }
+                            }
+                        }
                     }
                 }
             }
