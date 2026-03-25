@@ -453,8 +453,14 @@ impl App {
             // Comment
             KeyCode::Char('c') => self.start_comment(),
 
-            // Expand context
-            KeyCode::Char('e') => self.request_expand(),
+            // Expand context or toggle comment
+            KeyCode::Char('e') => {
+                if self.diff_view.toggle_comment_expand() {
+                    self.rebuild_display();
+                } else {
+                    self.request_expand();
+                }
+            }
 
             // Review actions — show confirmation popup
             KeyCode::Char('a') => self.review_confirm.show(ReviewEvent::Approve, self.pending_comments.len()),
