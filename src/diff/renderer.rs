@@ -36,11 +36,15 @@ pub enum DisplayRow {
         expanded: bool,
         body_preview: String,
         body_lines: usize,
+        is_reply: bool,
     },
     CommentBodyLine {
         line: Line<'static>,
+        is_reply: bool,
     },
-    CommentFooter,
+    CommentFooter {
+        is_reply: bool,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -50,6 +54,7 @@ pub enum ExpandDirection {
 }
 
 const COMMENT_INDENT: &str = "              ";
+const REPLY_EXTRA: &str = "    ";
 const BOX_PADDING: &str = "  ";
 
 fn render_markdown_to_lines(body: &str) -> Vec<Line<'static>> {
@@ -118,6 +123,7 @@ pub fn build_display_rows(
                         let is_expanded = expanded_comments.contains(&cid);
                         let preview = ec.body.lines().next().unwrap_or("").to_string();
                         let body_lines = ec.body.lines().count();
+                        let is_reply = ec.in_reply_to_id.is_some();
 
                         rows.push(DisplayRow::CommentHeader {
                             author: ec.user.login.clone(),
@@ -127,14 +133,15 @@ pub fn build_display_rows(
                             expanded: is_expanded,
                             body_preview: preview,
                             body_lines,
+                            is_reply,
                         });
 
                         if is_expanded {
                             let md_lines = render_markdown_to_lines(&ec.body);
                             for ml in md_lines {
-                                rows.push(DisplayRow::CommentBodyLine { line: ml });
+                                rows.push(DisplayRow::CommentBodyLine { line: ml, is_reply });
                             }
-                            rows.push(DisplayRow::CommentFooter);
+                            rows.push(DisplayRow::CommentFooter { is_reply });
                         }
                     }
 
@@ -156,14 +163,15 @@ pub fn build_display_rows(
                             expanded: is_expanded,
                             body_preview: preview,
                             body_lines,
+                            is_reply: false,
                         });
 
                         if is_expanded {
                             let md_lines = render_markdown_to_lines(&pc.body);
                             for ml in md_lines {
-                                rows.push(DisplayRow::CommentBodyLine { line: ml });
+                                rows.push(DisplayRow::CommentBodyLine { line: ml, is_reply: false });
                             }
-                            rows.push(DisplayRow::CommentFooter);
+                            rows.push(DisplayRow::CommentFooter { is_reply: false });
                         }
                     }
                 }
@@ -205,18 +213,25 @@ pub fn render_unified_row(row: &DisplayRow, _width: u16, is_selected: bool) -> L
             expanded,
             body_preview,
             body_lines,
+            is_reply,
             ..
         } => {
+            let indent = if *is_reply {
+                format!("{COMMENT_INDENT}{REPLY_EXTRA}")
+            } else {
+                COMMENT_INDENT.to_string()
+            };
             let toggle = if *body_lines > 1 {
                 if *expanded { "▼" } else { "▶" }
             } else {
                 " "
             };
+            let marker = if *is_reply { "↩" } else { "💬" };
 
             if *is_pending {
                 if *expanded {
                     Line::from(vec![
-                        Span::styled(COMMENT_INDENT, Theme::line_number()),
+                        Span::styled(indent, Theme::line_number()),
                         Span::styled(
                             format!("{toggle} ┌─ 📝 pending "),
                             Theme::pending_count(),
@@ -228,7 +243,7 @@ pub fn render_unified_row(row: &DisplayRow, _width: u16, is_selected: bool) -> L
                     ])
                 } else {
                     Line::from(vec![
-                        Span::styled(COMMENT_INDENT, Theme::line_number()),
+                        Span::styled(indent, Theme::line_number()),
                         Span::styled(
                             format!("{toggle} 📝 (pending) "),
                             Theme::pending_count(),
@@ -238,9 +253,9 @@ pub fn render_unified_row(row: &DisplayRow, _width: u16, is_selected: bool) -> L
                 }
             } else if *expanded {
                 Line::from(vec![
-                    Span::styled(COMMENT_INDENT, Theme::line_number()),
+                    Span::styled(indent, Theme::line_number()),
                     Span::styled(
-                        format!("{toggle} ┌─ 💬 {author} "),
+                        format!("{toggle} ┌─ {marker} {author} "),
                         Theme::comment_marker(),
                     ),
                     Span::styled(
@@ -250,26 +265,36 @@ pub fn render_unified_row(row: &DisplayRow, _width: u16, is_selected: bool) -> L
                 ])
             } else {
                 Line::from(vec![
-                    Span::styled(COMMENT_INDENT, Theme::line_number()),
+                    Span::styled(indent, Theme::line_number()),
                     Span::styled(
-                        format!("{toggle} 💬 {author}: "),
+                        format!("{toggle} {marker} {author}: "),
                         Theme::comment_marker(),
                     ),
                     Span::styled(body_preview.clone(), Theme::comment_body()),
                 ])
             }
         }
-        DisplayRow::CommentBodyLine { line } => {
+        DisplayRow::CommentBodyLine { line, is_reply } => {
+            let indent = if *is_reply {
+                format!("{COMMENT_INDENT}{REPLY_EXTRA}")
+            } else {
+                COMMENT_INDENT.to_string()
+            };
             let mut spans = vec![
-                Span::styled(COMMENT_INDENT, Theme::line_number()),
+                Span::styled(indent, Theme::line_number()),
                 Span::styled("  │ ", Theme::comment_marker()),
             ];
             spans.extend(line.spans.iter().cloned());
             Line::from(spans)
         }
-        DisplayRow::CommentFooter => {
+        DisplayRow::CommentFooter { is_reply } => {
+            let indent = if *is_reply {
+                format!("{COMMENT_INDENT}{REPLY_EXTRA}")
+            } else {
+                COMMENT_INDENT.to_string()
+            };
             Line::from(vec![
-                Span::styled(COMMENT_INDENT, Theme::line_number()),
+                Span::styled(indent, Theme::line_number()),
                 Span::styled(
                     format!("  └{}",  "─".repeat(34)),
                     Theme::comment_marker(),

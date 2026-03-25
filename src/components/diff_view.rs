@@ -66,7 +66,7 @@ impl DiffView {
         match self.display_rows.get(self.cursor) {
             Some(DisplayRow::CommentHeader { .. })
             | Some(DisplayRow::CommentBodyLine { .. })
-            | Some(DisplayRow::CommentFooter) => {}
+            | Some(DisplayRow::CommentFooter { .. }) => {}
             _ => return None,
         }
 
@@ -85,7 +85,7 @@ impl DiffView {
                 Some(DisplayRow::CommentHeader {
                     github_id: None, ..
                 }) => return None,
-                Some(DisplayRow::CommentBodyLine { .. }) | Some(DisplayRow::CommentFooter) => {
+                Some(DisplayRow::CommentBodyLine { .. }) | Some(DisplayRow::CommentFooter { .. }) => {
                     continue
                 }
                 _ => return None,
