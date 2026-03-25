@@ -1,4 +1,4 @@
-use crossterm::event::{self, Event, KeyEvent};
+use crossterm::event::{self, Event, KeyEvent, KeyEventKind};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -38,7 +38,7 @@ impl EventHandler {
             while !term_cancel.is_cancelled() {
                 if event::poll(Duration::from_millis(50)).unwrap_or(false) {
                     match event::read() {
-                        Ok(Event::Key(key)) => {
+                        Ok(Event::Key(key)) if key.kind == KeyEventKind::Press => {
                             if term_tx.send(AppEvent::Key(key)).is_err() {
                                 break;
                             }
