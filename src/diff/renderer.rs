@@ -1,8 +1,9 @@
 use ratatui::{
-    style::Style,
+    style::{Color, Style, Stylize},
     text::{Line, Span},
 };
 
+use crate::highlight::highlight;
 use crate::theme::Theme;
 use crate::types::{DiffFile, DiffLine, ExistingComment, LineKind, ReviewComment, Side};
 
@@ -184,7 +185,12 @@ pub fn build_display_rows(
 
 const LINE_NUM_WIDTH: usize = 5;
 
-pub fn render_unified_row(row: &DisplayRow, _width: u16, is_selected: bool) -> Line<'static> {
+pub fn render_unified_row(
+    row: &DisplayRow,
+    files: &[DiffFile],
+    _width: u16,
+    is_selected: bool,
+) -> Line<'static> {
     let base_line = match row {
         DisplayRow::FileHeader { path, .. } => Line::from(vec![Span::styled(
             format!("─── {path} ───"),
@@ -193,7 +199,10 @@ pub fn render_unified_row(row: &DisplayRow, _width: u16, is_selected: bool) -> L
         DisplayRow::HunkHeader { text, .. } => {
             Line::from(vec![Span::styled(text.clone(), Theme::hunk_header())])
         }
-        DisplayRow::DiffLine { line, .. } => render_unified_diff_line(line),
+        DisplayRow::DiffLine { line, file_idx, .. } => {
+            let path = files.get(*file_idx).map(|f| f.path.as_str()).unwrap_or("");
+            render_unified_diff_line(line, path)
+        }
         DisplayRow::ExpandHint {
             available_lines, ..
         } => Line::from(vec![Span::styled(
@@ -300,7 +309,7 @@ pub fn render_unified_row(row: &DisplayRow, _width: u16, is_selected: bool) -> L
     }
 }
 
-fn render_unified_diff_line(line: &DiffLine) -> Line<'static> {
+fn render_unified_diff_line(line: &DiffLine, path: &str) -> Line<'static> {
     let old_num = line
         .old_lineno
         .map(|n| format!("{n:>LINE_NUM_WIDTH$}"))
@@ -310,30 +319,45 @@ fn render_unified_diff_line(line: &DiffLine) -> Line<'static> {
         .map(|n| format!("{n:>LINE_NUM_WIDTH$}"))
         .unwrap_or(" ".repeat(LINE_NUM_WIDTH));
 
-    let (marker, style) = match line.kind {
-        LineKind::Added => ("+", Theme::added_line_bg()),
-        LineKind::Removed => ("-", Theme::removed_line_bg()),
-        LineKind::Context => (" ", Theme::context_line()),
+    let (marker, style, bg_color) = match line.kind {
+        LineKind::Added => ("+", Theme::added_line_bg(), Theme::added_line_bg_color()),
+        LineKind::Removed => (
+            "-",
+            Theme::removed_line_bg(),
+            Theme::removed_line_bg_color(),
+        ),
+        LineKind::Context => (" ", Theme::context_line(), Color::Reset),
     };
 
-    Line::from(vec![
+    let highlighted = highlight(&line, path);
+
+    let mut spans = vec![
         Span::styled(old_num, Theme::line_number()),
         Span::styled("  ", Theme::line_number()),
         Span::styled(new_num, Theme::line_number()),
         Span::styled(format!(" {marker} "), style),
-        Span::styled(line.content.clone(), style),
-    ])
+    ];
+
+    spans.extend(
+        highlighted
+            .clone()
+            .iter()
+            .map(|span| span.clone().bg(bg_color)),
+    );
+
+    Line::from(spans)
 }
 
 pub fn render_sbs_row(
     row: &DisplayRow,
+    files: &[DiffFile],
     half_width: u16,
     is_selected: bool,
 ) -> (Line<'static>, Line<'static>) {
     match row {
         DisplayRow::DiffLine { line, .. } => render_sbs_diff_line(line, half_width, is_selected),
         _ => {
-            let unified = render_unified_row(row, half_width * 2, is_selected);
+            let unified = render_unified_row(row, files, half_width * 2, is_selected);
             (unified.clone(), Line::default())
         }
     }

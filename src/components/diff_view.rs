@@ -18,6 +18,7 @@ pub struct DiffView {
     pub search: SearchState,
     display_rows: Vec<DisplayRow>,
     expanded_comments: HashSet<usize>,
+    files: Vec<DiffFile>,
 }
 
 impl DiffView {
@@ -29,6 +30,7 @@ impl DiffView {
             search: SearchState::new(),
             display_rows: Vec::new(),
             expanded_comments: HashSet::new(),
+            files: Vec::new(),
         }
     }
 
@@ -38,6 +40,7 @@ impl DiffView {
         existing_comments: &[ExistingComment],
         pending_comments: &[ReviewComment],
     ) {
+        self.files = files.to_vec();
         self.display_rows = build_display_rows(
             files,
             existing_comments,
@@ -363,7 +366,7 @@ impl DiffView {
             .map(|(i, row)| {
                 let global_idx = scroll + i;
                 let selected = global_idx == self.cursor;
-                let line = render_unified_row(row, area.width, selected);
+                let line = render_unified_row(row, &self.files, area.width, selected);
                 self.search.highlight(line, global_idx)
             })
             .collect();
@@ -428,11 +431,11 @@ impl DiffView {
 
                         let mut left = removed
                             .get(k)
-                            .map(|(_, row)| render_sbs_row(row, half_width, selected).0)
+                            .map(|(_, row)| render_sbs_row(row, &self.files, half_width, selected).0)
                             .unwrap_or_default();
                         let mut right = added
                             .get(k)
-                            .map(|(_, row)| render_sbs_row(row, half_width, selected).1)
+                            .map(|(_, row)| render_sbs_row(row, &self.files, half_width, selected).1)
                             .unwrap_or_default();
 
                         if let Some((gi, _)) = removed.get(k) {
@@ -449,14 +452,14 @@ impl DiffView {
                 }
                 DisplayRow::DiffLine { .. } => {
                     let selected = global_idx == self.cursor;
-                    let (l, r) = render_sbs_row(&visible[i], half_width, selected);
+                    let (l, r) = render_sbs_row(&visible[i], &self.files, half_width, selected);
                     left_lines.push(self.search.highlight(l, global_idx));
                     right_lines.push(self.search.highlight(r, global_idx));
                     i += 1;
                 }
                 _ => {
                     let selected = global_idx == self.cursor;
-                    let unified = render_unified_row(&visible[i], area.width, selected);
+                    let unified = render_unified_row(&visible[i], &self.files, area.width, selected);
                     left_lines.push(self.search.highlight(unified, global_idx));
                     right_lines.push(Line::default());
                     i += 1;
