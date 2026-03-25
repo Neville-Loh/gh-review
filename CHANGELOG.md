@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.1.1] - 2026-03-24
 
 ### Added
 
@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Search bar with match count indicator (`[3/15]`)
 - `Esc` clears active search and restores cursor position
 - `F1` keybinding for help overlay
+- Reply to review comments
+- Toggle comment visibility with `e`
+- Cross-platform support (Windows PowerShell fix)
 
 ### Changed
 
