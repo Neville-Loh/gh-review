@@ -108,6 +108,7 @@ impl App {
                     if let Some(c) = new_cursor {
                         self.diff_view.cursor = c;
                     }
+                    self.update_search_status();
                 } else {
                     self.diff_view.next_file();
                 }
@@ -124,6 +125,7 @@ impl App {
                     if let Some(c) = new_cursor {
                         self.diff_view.cursor = c;
                     }
+                    self.update_search_status();
                 } else {
                     self.diff_view.prev_file();
                 }
@@ -201,6 +203,14 @@ impl App {
             }
             CommentAction::Cancel => {}
             CommentAction::None => {}
+        }
+    }
+
+    fn update_search_status(&mut self) {
+        let (curr, total) = self.diff_view.search.match_info();
+        if total > 0 {
+            self.status_msg = format!("/{} [{}/{}]", self.search_bar.input, curr + 1, total);
+            self.status_is_error = false;
         }
     }
 
