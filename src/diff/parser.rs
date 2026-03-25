@@ -46,6 +46,7 @@ impl HunkBuilder {
                 old_lineno: None,
                 new_lineno: Some(self.new_lineno),
                 content: raw[1..].to_string(),
+                highlighted_content: None,
             });
             self.new_lineno += 1;
         } else if raw.starts_with('-') {
@@ -54,6 +55,7 @@ impl HunkBuilder {
                 old_lineno: Some(self.old_lineno),
                 new_lineno: None,
                 content: raw[1..].to_string(),
+                highlighted_content: None,
             });
             self.old_lineno += 1;
         } else if raw.starts_with('\\') {
@@ -70,6 +72,7 @@ impl HunkBuilder {
                 old_lineno: Some(self.old_lineno),
                 new_lineno: Some(self.new_lineno),
                 content,
+                highlighted_content: None,
             });
             self.old_lineno += 1;
             self.new_lineno += 1;

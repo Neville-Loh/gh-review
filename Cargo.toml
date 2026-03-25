@@ -25,6 +25,8 @@ base64 = "0.22"
 unicode-width = "0.2"
 anyhow = "1"
 regex = "1"
+arborium = { version = "2", default-features = false, features = ["all-languages"] }
+ansi-to-tui = "8.0.1"
 
 # The profile that 'dist' will build with
 [profile.dist]

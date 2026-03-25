@@ -3,6 +3,14 @@ use ratatui::style::{Color, Modifier, Style};
 pub struct Theme;
 
 impl Theme {
+    pub fn added_line_bg_color() -> Color {
+        Color::Rgb(0, 40, 0)
+    }
+
+    pub fn removed_line_bg_color() -> Color {
+        Color::Rgb(40, 0, 0)
+    }
+
     pub fn added_line() -> Style {
         Style::default().fg(Color::Green)
     }
