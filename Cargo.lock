@@ -636,6 +636,7 @@ dependencies = [
  "clap",
  "crossterm",
  "ratatui",
+ "regex",
  "serde",
  "serde_json",
  "tokio",

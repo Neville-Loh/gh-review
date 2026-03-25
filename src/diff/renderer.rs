@@ -397,3 +397,4 @@ fn render_sbs_diff_line(
         }
     }
 }
+
