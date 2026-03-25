@@ -27,11 +27,7 @@ fn expand_before(hunk: &mut Hunk, base_lines: &[&str], _head_lines: &[&str], cou
     let mut new_lines = Vec::new();
     for i in expand_start..first_old {
         let old_idx = i - 1;
-        let content = base_lines
-            .get(old_idx)
-            .copied()
-            .unwrap_or("")
-            .to_string();
+        let content = base_lines.get(old_idx).copied().unwrap_or("").to_string();
         new_lines.push(DiffLine {
             kind: LineKind::Context,
             old_lineno: Some(i),
@@ -62,11 +58,7 @@ fn expand_after(hunk: &mut Hunk, base_lines: &[&str], _head_lines: &[&str], coun
     for i in (last_old + 1)..=end {
         let old_idx = i - 1;
         let new_lineno = last_new + (i - last_old);
-        let content = base_lines
-            .get(old_idx)
-            .copied()
-            .unwrap_or("")
-            .to_string();
+        let content = base_lines.get(old_idx).copied().unwrap_or("").to_string();
         hunk.lines.push(DiffLine {
             kind: LineKind::Context,
             old_lineno: Some(i),

@@ -8,9 +8,7 @@ impl Theme {
     }
 
     pub fn added_line_bg() -> Style {
-        Style::default()
-            .fg(Color::Green)
-            .bg(Color::Rgb(0, 40, 0))
+        Style::default().fg(Color::Green).bg(Color::Rgb(0, 40, 0))
     }
 
     pub fn removed_line() -> Style {
@@ -18,9 +16,7 @@ impl Theme {
     }
 
     pub fn removed_line_bg() -> Style {
-        Style::default()
-            .fg(Color::Red)
-            .bg(Color::Rgb(40, 0, 0))
+        Style::default().fg(Color::Red).bg(Color::Rgb(40, 0, 0))
     }
 
     pub fn context_line() -> Style {
@@ -32,9 +28,7 @@ impl Theme {
     }
 
     pub fn hunk_header() -> Style {
-        Style::default()
-            .fg(Color::Cyan)
-            .add_modifier(Modifier::DIM)
+        Style::default().fg(Color::Cyan).add_modifier(Modifier::DIM)
     }
 
     pub fn file_header() -> Style {
@@ -124,9 +118,7 @@ impl Theme {
     }
 
     pub fn expand_hint() -> Style {
-        Style::default()
-            .fg(Color::Blue)
-            .add_modifier(Modifier::DIM)
+        Style::default().fg(Color::Blue).add_modifier(Modifier::DIM)
     }
 
     pub fn help_key() -> Style {
@@ -144,9 +136,7 @@ impl Theme {
     }
 
     pub fn search_match() -> Style {
-        Style::default()
-            .bg(Color::Rgb(100, 80, 0))
-            .fg(Color::White)
+        Style::default().bg(Color::Rgb(100, 80, 0)).fg(Color::White)
     }
 
     pub fn search_current() -> Style {

@@ -1,7 +1,7 @@
 use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::{
-    layout::{Constraint, Direction, Layout, Rect},
     Frame,
+    layout::{Constraint, Direction, Layout, Rect},
 };
 use tokio::sync::mpsc;
 use tui_textarea::Input;
@@ -13,8 +13,8 @@ use crate::components::help::HelpOverlay;
 use crate::components::review_bar::ReviewBar;
 use crate::components::review_confirm::ReviewConfirm;
 use crate::components::search_bar::SearchBar;
-use crate::search::SearchDirection;
 use crate::event::AppEvent;
+use crate::search::SearchDirection;
 use crate::types::{DiffFile, ExistingComment, PrMetadata, ReviewComment, ReviewEvent};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -222,16 +222,11 @@ impl App {
                     self.search_bar.close();
                     let (curr, total) = self.diff_view.search.match_info();
                     if total > 0 {
-                        self.status_msg = format!(
-                            "/{} [{}/{}]",
-                            self.search_bar.input,
-                            curr + 1,
-                            total
-                        );
+                        self.status_msg =
+                            format!("/{} [{}/{}]", self.search_bar.input, curr + 1, total);
                         self.status_is_error = false;
                     } else if !self.search_bar.input.is_empty() {
-                        self.status_msg =
-                            format!("Pattern not found: {}", self.search_bar.input);
+                        self.status_msg = format!("Pattern not found: {}", self.search_bar.input);
                         self.status_is_error = true;
                     }
                 }
@@ -311,8 +306,10 @@ impl App {
                     self.diff_view.scroll_offset = self.diff_view.cursor;
                 }
                 ('z', KeyCode::Char('b')) => {
-                    self.diff_view.scroll_offset =
-                        self.diff_view.cursor.saturating_sub(self.visible_height.saturating_sub(1));
+                    self.diff_view.scroll_offset = self
+                        .diff_view
+                        .cursor
+                        .saturating_sub(self.visible_height.saturating_sub(1));
                 }
                 _ => {}
             }
@@ -474,9 +471,15 @@ impl App {
             }
 
             // Review actions — show confirmation popup
-            KeyCode::Char('a') => self.review_confirm.show(ReviewEvent::Approve, self.pending_comments.len()),
-            KeyCode::Char('r') => self.review_confirm.show(ReviewEvent::RequestChanges, self.pending_comments.len()),
-            KeyCode::Char('s') => self.review_confirm.show(ReviewEvent::Comment, self.pending_comments.len()),
+            KeyCode::Char('a') => self
+                .review_confirm
+                .show(ReviewEvent::Approve, self.pending_comments.len()),
+            KeyCode::Char('r') => self
+                .review_confirm
+                .show(ReviewEvent::RequestChanges, self.pending_comments.len()),
+            KeyCode::Char('s') => self
+                .review_confirm
+                .show(ReviewEvent::Comment, self.pending_comments.len()),
 
             // Open in browser
             KeyCode::Char('o') => self.open_in_browser(),
@@ -505,10 +508,8 @@ impl App {
                     let head_ref = meta.head.sha.clone();
 
                     tokio::spawn(async move {
-                        let base =
-                            crate::gh::fetch_file_content(&repo, &path, &base_ref).await;
-                        let head =
-                            crate::gh::fetch_file_content(&repo, &path, &head_ref).await;
+                        let base = crate::gh::fetch_file_content(&repo, &path, &base_ref).await;
+                        let head = crate::gh::fetch_file_content(&repo, &path, &head_ref).await;
 
                         match (base, head) {
                             (Ok(b), Ok(h)) => {
@@ -603,11 +604,8 @@ impl App {
     }
 
     fn rebuild_display(&mut self) {
-        self.diff_view.rebuild_rows(
-            &self.files,
-            &self.existing_comments,
-            &self.pending_comments,
-        );
+        self.diff_view
+            .rebuild_rows(&self.files, &self.existing_comments, &self.pending_comments);
     }
 
     pub fn draw(&mut self, frame: &mut Frame) {
@@ -618,7 +616,7 @@ impl App {
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(1), // Title
-                Constraint::Min(0),   // Content
+                Constraint::Min(0),    // Content
                 Constraint::Length(1), // Review bar
             ])
             .split(size);
@@ -631,7 +629,7 @@ impl App {
             .direction(Direction::Horizontal)
             .constraints([
                 Constraint::Length(30), // File picker
-                Constraint::Min(0),    // Diff
+                Constraint::Min(0),     // Diff
             ])
             .split(main_layout[1]);
 
@@ -669,7 +667,8 @@ impl App {
 
         // Overlays
         if self.comment_input.visible {
-            self.comment_input.draw(content_layout[1], frame.buffer_mut());
+            self.comment_input
+                .draw(content_layout[1], frame.buffer_mut());
         }
 
         if self.review_confirm.visible {

@@ -5,7 +5,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Widget},
 };
 
-use crate::diff::renderer::{build_display_rows, render_sbs_row, render_unified_row, DisplayRow};
+use crate::diff::renderer::{DisplayRow, build_display_rows, render_sbs_row, render_unified_row};
 use crate::search::{SearchDirection, SearchState};
 use crate::theme::Theme;
 use crate::types::{DiffFile, DiffMode, ExistingComment, ReviewComment};
@@ -50,9 +50,9 @@ impl DiffView {
     /// Compile pattern, find matches, and jump cursor to the first hit.
     /// Thin wrapper so SearchState can access display_rows.
     pub fn apply_search(&mut self, pattern: &str, direction: SearchDirection) {
-        if let Some(cursor) =
-            self.search
-                .apply(pattern, direction, &self.display_rows, self.cursor)
+        if let Some(cursor) = self
+            .search
+            .apply(pattern, direction, &self.display_rows, self.cursor)
         {
             self.cursor = cursor;
         }
@@ -85,9 +85,8 @@ impl DiffView {
                 Some(DisplayRow::CommentHeader {
                     github_id: None, ..
                 }) => return None,
-                Some(DisplayRow::CommentBodyLine { .. }) | Some(DisplayRow::CommentFooter { .. }) => {
-                    continue
-                }
+                Some(DisplayRow::CommentBodyLine { .. })
+                | Some(DisplayRow::CommentFooter { .. }) => continue,
                 _ => return None,
             }
         }
@@ -261,17 +260,12 @@ impl DiffView {
     /// Get info about the current cursor line for commenting.
     pub fn current_line_info(&self) -> Option<CommentTarget> {
         self.display_rows.get(self.cursor).and_then(|row| {
-            if let DisplayRow::DiffLine {
-                line, file_idx, ..
-            } = row
-            {
+            if let DisplayRow::DiffLine { line, file_idx, .. } = row {
                 let (lineno, side) = match line.kind {
                     crate::types::LineKind::Added | crate::types::LineKind::Context => {
                         (line.new_lineno?, crate::types::Side::Right)
                     }
-                    crate::types::LineKind::Removed => {
-                        (line.old_lineno?, crate::types::Side::Left)
-                    }
+                    crate::types::LineKind::Removed => (line.old_lineno?, crate::types::Side::Left),
                 };
                 Some(CommentTarget {
                     file_idx: *file_idx,
@@ -299,9 +293,7 @@ impl DiffView {
     pub fn current_hunk_idx(&self) -> Option<(usize, usize)> {
         self.display_rows.get(self.cursor).and_then(|row| {
             if let DisplayRow::DiffLine {
-                file_idx,
-                hunk_idx,
-                ..
+                file_idx, hunk_idx, ..
             } = row
             {
                 Some((*file_idx, *hunk_idx))

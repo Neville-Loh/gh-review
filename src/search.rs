@@ -86,24 +86,24 @@ impl SearchState {
 
                 let anchor = self.anchor.unwrap_or(fallback_cursor);
                 self.current_match = match direction {
-                    SearchDirection::Forward => self
-                        .match_rows
-                        .iter()
-                        .position(|&r| r >= anchor)
-                        .or(if !self.match_rows.is_empty() {
-                            Some(0)
-                        } else {
-                            None
-                        }),
-                    SearchDirection::Backward => self
-                        .match_rows
-                        .iter()
-                        .rposition(|&r| r <= anchor)
-                        .or(if !self.match_rows.is_empty() {
-                            Some(self.match_rows.len() - 1)
-                        } else {
-                            None
-                        }),
+                    SearchDirection::Forward => {
+                        self.match_rows.iter().position(|&r| r >= anchor).or(
+                            if !self.match_rows.is_empty() {
+                                Some(0)
+                            } else {
+                                None
+                            },
+                        )
+                    }
+                    SearchDirection::Backward => {
+                        self.match_rows.iter().rposition(|&r| r <= anchor).or(
+                            if !self.match_rows.is_empty() {
+                                Some(self.match_rows.len() - 1)
+                            } else {
+                                None
+                            },
+                        )
+                    }
                 };
 
                 self.current_match
@@ -721,10 +721,7 @@ mod tests {
 
     #[test]
     fn search_matches_hunk_headers() {
-        let rows = vec![
-            hunk_header("@@ -1,5 +1,6 @@ fn main"),
-            diff_row("code"),
-        ];
+        let rows = vec![hunk_header("@@ -1,5 +1,6 @@ fn main"), diff_row("code")];
         let mut s = SearchState::new();
         s.apply("fn main", SearchDirection::Forward, &rows, 0);
         assert_eq!(s.match_info().1, 1);
@@ -732,7 +729,10 @@ mod tests {
 
     #[test]
     fn search_skips_comment_footer() {
-        let rows = vec![diff_row("real match"), DisplayRow::CommentFooter { is_reply: false }];
+        let rows = vec![
+            diff_row("real match"),
+            DisplayRow::CommentFooter { is_reply: false },
+        ];
         let mut s = SearchState::new();
         s.apply("match", SearchDirection::Forward, &rows, 0);
         assert_eq!(s.match_info().1, 1); // only the diff row

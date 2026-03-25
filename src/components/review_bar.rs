@@ -10,7 +10,13 @@ use crate::theme::Theme;
 pub struct ReviewBar;
 
 impl ReviewBar {
-    pub fn draw(area: Rect, buf: &mut Buffer, pending_count: usize, status_msg: &str, status_is_error: bool) {
+    pub fn draw(
+        area: Rect,
+        buf: &mut Buffer,
+        pending_count: usize,
+        status_msg: &str,
+        status_is_error: bool,
+    ) {
         let mut spans = vec![
             Span::styled(" [c]", Theme::review_bar_key()),
             Span::styled("omment ", Theme::review_bar_label()),
@@ -35,7 +41,11 @@ impl ReviewBar {
         }
 
         if !status_msg.is_empty() {
-            let style = if status_is_error { Theme::error() } else { Theme::status_added() };
+            let style = if status_is_error {
+                Theme::error()
+            } else {
+                Theme::status_added()
+            };
             spans.push(Span::styled(" │ ", Theme::review_bar_label()));
             spans.push(Span::styled(status_msg.to_string(), style));
         }

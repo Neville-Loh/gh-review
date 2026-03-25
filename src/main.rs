@@ -16,7 +16,10 @@ use crossterm::{
 use ratatui::{Terminal, backend::CrosstermBackend};
 
 #[derive(Parser)]
-#[command(name = "gh-review", about = "Terminal UI for reviewing GitHub pull requests")]
+#[command(
+    name = "gh-review",
+    about = "Terminal UI for reviewing GitHub pull requests"
+)]
 struct Cli {
     /// Repository in owner/repo format
     repo: String,

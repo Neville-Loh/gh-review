@@ -62,7 +62,11 @@ impl ReviewConfirm {
         };
 
         let comments_line = if self.pending_count > 0 {
-            format!("  with {} inline comment{}", self.pending_count, if self.pending_count == 1 { "" } else { "s" })
+            format!(
+                "  with {} inline comment{}",
+                self.pending_count,
+                if self.pending_count == 1 { "" } else { "s" }
+            )
         } else {
             "  with no inline comments".to_string()
         };
@@ -73,9 +77,7 @@ impl ReviewConfirm {
                 Span::styled("  Action: ", Theme::review_bar_label()),
                 Span::styled(self.event.label().to_string(), action_style),
             ]),
-            Line::from(vec![
-                Span::styled(comments_line, Theme::review_bar_label()),
-            ]),
+            Line::from(vec![Span::styled(comments_line, Theme::review_bar_label())]),
             Line::default(),
             Line::from(vec![
                 Span::styled("  Enter", Theme::review_bar_key()),

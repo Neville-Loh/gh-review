@@ -1,0 +1,14 @@
+githubRepoOwner: Neville-Loh
+githubRepoName: gh-review
+githubHost: github.com
+githubRemote: origin
+githubBranch: main
+requireChecks: true
+requireApproval: true
+defaultReviewers: []
+mergeMethod: rebase
+mergeQueue: false
+prTemplateType: stack
+forceFetchTags: false
+showPrTitlesInStack: false
+branchPushIndividually: false

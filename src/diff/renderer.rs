@@ -111,13 +111,11 @@ pub fn build_display_rows(
                         c.path == file.path
                             && c.line == Some(lineno)
                             && match (c.side.as_deref(), &target_side) {
-                                (Some("LEFT"), Side::Left)
-                                | (Some("RIGHT"), Side::Right) => true,
+                                (Some("LEFT"), Side::Left) | (Some("RIGHT"), Side::Right) => true,
                                 (None, _) => true,
                                 _ => false,
                             }
-                    })
-                    {
+                    }) {
                         let cid = comment_id_counter;
                         comment_id_counter += 1;
                         let is_expanded = expanded_comments.contains(&cid);
@@ -145,10 +143,9 @@ pub fn build_display_rows(
                         }
                     }
 
-                    for pc in pending_comments
-                        .iter()
-                        .filter(|c| c.path == file.path && c.line == lineno && c.side == target_side)
-                    {
+                    for pc in pending_comments.iter().filter(|c| {
+                        c.path == file.path && c.line == lineno && c.side == target_side
+                    }) {
                         let cid = comment_id_counter;
                         comment_id_counter += 1;
                         let is_expanded = expanded_comments.contains(&cid);
@@ -169,7 +166,10 @@ pub fn build_display_rows(
                         if is_expanded {
                             let md_lines = render_markdown_to_lines(&pc.body);
                             for ml in md_lines {
-                                rows.push(DisplayRow::CommentBodyLine { line: ml, is_reply: false });
+                                rows.push(DisplayRow::CommentBodyLine {
+                                    line: ml,
+                                    is_reply: false,
+                                });
                             }
                             rows.push(DisplayRow::CommentFooter { is_reply: false });
                         }
@@ -186,12 +186,10 @@ const LINE_NUM_WIDTH: usize = 5;
 
 pub fn render_unified_row(row: &DisplayRow, _width: u16, is_selected: bool) -> Line<'static> {
     let base_line = match row {
-        DisplayRow::FileHeader { path, .. } => {
-            Line::from(vec![Span::styled(
-                format!("─── {path} ───"),
-                Theme::file_header(),
-            )])
-        }
+        DisplayRow::FileHeader { path, .. } => Line::from(vec![Span::styled(
+            format!("─── {path} ───"),
+            Theme::file_header(),
+        )]),
         DisplayRow::HunkHeader { text, .. } => {
             Line::from(vec![Span::styled(text.clone(), Theme::hunk_header())])
         }
@@ -232,22 +230,13 @@ pub fn render_unified_row(row: &DisplayRow, _width: u16, is_selected: bool) -> L
                 if *expanded {
                     Line::from(vec![
                         Span::styled(indent, Theme::line_number()),
-                        Span::styled(
-                            format!("{toggle} ┌─ 📝 pending "),
-                            Theme::pending_count(),
-                        ),
-                        Span::styled(
-                            "─".repeat(30),
-                            Theme::pending_count(),
-                        ),
+                        Span::styled(format!("{toggle} ┌─ 📝 pending "), Theme::pending_count()),
+                        Span::styled("─".repeat(30), Theme::pending_count()),
                     ])
                 } else {
                     Line::from(vec![
                         Span::styled(indent, Theme::line_number()),
-                        Span::styled(
-                            format!("{toggle} 📝 (pending) "),
-                            Theme::pending_count(),
-                        ),
+                        Span::styled(format!("{toggle} 📝 (pending) "), Theme::pending_count()),
                         Span::styled(body_preview.clone(), Theme::comment_body()),
                     ])
                 }
@@ -258,10 +247,7 @@ pub fn render_unified_row(row: &DisplayRow, _width: u16, is_selected: bool) -> L
                         format!("{toggle} ┌─ {marker} {author} "),
                         Theme::comment_marker(),
                     ),
-                    Span::styled(
-                        "─".repeat(30),
-                        Theme::comment_marker(),
-                    ),
+                    Span::styled("─".repeat(30), Theme::comment_marker()),
                 ])
             } else {
                 Line::from(vec![
@@ -295,19 +281,19 @@ pub fn render_unified_row(row: &DisplayRow, _width: u16, is_selected: bool) -> L
             };
             Line::from(vec![
                 Span::styled(indent, Theme::line_number()),
-                Span::styled(
-                    format!("  └{}",  "─".repeat(34)),
-                    Theme::comment_marker(),
-                ),
+                Span::styled(format!("  └{}", "─".repeat(34)), Theme::comment_marker()),
             ])
         }
     };
 
     if is_selected {
         let mut spans = vec![Span::styled("▌", Theme::selected_cursor())];
-        spans.extend(base_line.spans.into_iter().map(|s| {
-            Span::styled(s.content, s.style.patch(Theme::selected_line()))
-        }));
+        spans.extend(
+            base_line
+                .spans
+                .into_iter()
+                .map(|s| Span::styled(s.content, s.style.patch(Theme::selected_line()))),
+        );
         Line::from(spans)
     } else {
         base_line
@@ -432,4 +418,3 @@ fn render_sbs_diff_line(
         }
     }
 }
-
