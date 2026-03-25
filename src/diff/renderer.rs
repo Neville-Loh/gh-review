@@ -225,11 +225,7 @@ pub fn render_unified_row(
                 COMMENT_INDENT.to_string()
             };
             let toggle = if *body_lines > 1 {
-                if *expanded {
-                    "▼"
-                } else {
-                    "▶"
-                }
+                if *expanded { "▼" } else { "▶" }
             } else {
                 " "
             };

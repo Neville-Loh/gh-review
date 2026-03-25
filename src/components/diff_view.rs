@@ -431,11 +431,15 @@ impl DiffView {
 
                         let mut left = removed
                             .get(k)
-                            .map(|(_, row)| render_sbs_row(row, &self.files, half_width, selected).0)
+                            .map(|(_, row)| {
+                                render_sbs_row(row, &self.files, half_width, selected).0
+                            })
                             .unwrap_or_default();
                         let mut right = added
                             .get(k)
-                            .map(|(_, row)| render_sbs_row(row, &self.files, half_width, selected).1)
+                            .map(|(_, row)| {
+                                render_sbs_row(row, &self.files, half_width, selected).1
+                            })
                             .unwrap_or_default();
 
                         if let Some((gi, _)) = removed.get(k) {
@@ -459,7 +463,8 @@ impl DiffView {
                 }
                 _ => {
                     let selected = global_idx == self.cursor;
-                    let unified = render_unified_row(&visible[i], &self.files, area.width, selected);
+                    let unified =
+                        render_unified_row(&visible[i], &self.files, area.width, selected);
                     left_lines.push(self.search.highlight(unified, global_idx));
                     right_lines.push(Line::default());
                     i += 1;

@@ -1,10 +1,13 @@
 use ansi_to_tui::IntoText;
 use arborium::theme::builtin;
-use arborium::{detect_language, AnsiHighlighter};
+use arborium::{AnsiHighlighter, detect_language};
 use ratatui::text::{Line, Text};
 use std::sync::{LazyLock, Mutex};
 
 use crate::types::DiffFile;
+
+static HIGHLIGHTER: LazyLock<Mutex<AnsiHighlighter>> =
+    LazyLock::new(|| Mutex::new(AnsiHighlighter::new(builtin::github_dark())));
 
 pub fn highlight_content(path: &str, content: &str) -> Vec<Line<'static>> {
     let lang = detect_language(path).unwrap_or("text");
@@ -17,9 +20,6 @@ pub fn highlight_content(path: &str, content: &str) -> Vec<Line<'static>> {
         .unwrap_or_else(|_| Text::raw(content.to_string()))
         .lines
 }
-
-static HIGHLIGHTER: LazyLock<Mutex<AnsiHighlighter>> =
-    LazyLock::new(|| Mutex::new(AnsiHighlighter::new(builtin::github_dark())));
 
 pub fn highlight_file(file: &mut DiffFile) {
     let lang = detect_language(&file.path).unwrap_or("text");
