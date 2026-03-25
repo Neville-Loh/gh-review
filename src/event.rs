@@ -4,6 +4,7 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum AppEvent {
     Key(KeyEvent),
     Resize(u16, u16),

@@ -40,33 +40,28 @@ struct HunkBuilder {
 
 impl HunkBuilder {
     fn add_line(&mut self, raw: &str) {
-        if raw.starts_with('+') {
+        if let Some(stripped) = raw.strip_prefix('+') {
             self.lines.push(DiffLine {
                 kind: LineKind::Added,
                 old_lineno: None,
                 new_lineno: Some(self.new_lineno),
-                content: raw[1..].to_string(),
+                content: stripped.to_string(),
                 highlighted_content: None,
             });
             self.new_lineno += 1;
-        } else if raw.starts_with('-') {
+        } else if let Some(stripped) = raw.strip_prefix('-') {
             self.lines.push(DiffLine {
                 kind: LineKind::Removed,
                 old_lineno: Some(self.old_lineno),
                 new_lineno: None,
-                content: raw[1..].to_string(),
+                content: stripped.to_string(),
                 highlighted_content: None,
             });
             self.old_lineno += 1;
         } else if raw.starts_with('\\') {
             // "\ No newline at end of file" — skip
         } else {
-            // Context line (starts with space or is plain text)
-            let content = if raw.starts_with(' ') {
-                raw[1..].to_string()
-            } else {
-                raw.to_string()
-            };
+            let content = raw.strip_prefix(' ').unwrap_or(raw).to_string();
             self.lines.push(DiffLine {
                 kind: LineKind::Context,
                 old_lineno: Some(self.old_lineno),
