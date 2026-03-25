@@ -355,7 +355,10 @@ pub fn render_sbs_row(
     is_selected: bool,
 ) -> (Line<'static>, Line<'static>) {
     match row {
-        DisplayRow::DiffLine { line, .. } => render_sbs_diff_line(line, half_width, is_selected),
+        DisplayRow::DiffLine { line, file_idx, .. } => {
+            let path = files.get(*file_idx).map(|f| f.path.as_str()).unwrap_or("");
+            render_sbs_diff_line(line, path, half_width, is_selected)
+        }
         _ => {
             let unified = render_unified_row(row, files, half_width * 2, is_selected);
             (unified.clone(), Line::default())
@@ -363,17 +366,28 @@ pub fn render_sbs_row(
     }
 }
 
-fn truncate_to_width(s: &str, max_chars: usize) -> String {
-    if s.len() <= max_chars {
-        s.to_string()
-    } else {
-        let truncated: String = s.chars().take(max_chars.saturating_sub(1)).collect();
-        format!("{truncated}…")
-    }
+fn truncate_spans(spans: &[Span<'static>], max_chars: usize) -> Vec<Span<'static>> {
+    let mut remaining = max_chars;
+    spans
+        .iter()
+        .filter_map(|span| {
+            if remaining <= 0 {
+                return None;
+            }
+            let taken = span.content.chars().take(remaining).collect::<String>();
+            remaining = remaining.saturating_sub(taken.len());
+            if taken.is_empty() {
+                None
+            } else {
+                Some(Span::styled(taken, span.style))
+            }
+        })
+        .collect()
 }
 
 fn render_sbs_diff_line(
     line: &DiffLine,
+    path: &str,
     half_width: u16,
     is_selected: bool,
 ) -> (Line<'static>, Line<'static>) {
@@ -384,6 +398,9 @@ fn render_sbs_diff_line(
     };
 
     let content_max = (half_width as usize).saturating_sub(LINE_NUM_WIDTH + 3);
+
+    let highlighted = highlight(line, path);
+    let truncated_spans = truncate_spans(highlighted.spans.as_slice(), content_max);
 
     match line.kind {
         LineKind::Context => {
@@ -396,49 +413,61 @@ fn render_sbs_diff_line(
                 .map(|n| format!("{n:>LINE_NUM_WIDTH$}"))
                 .unwrap_or(" ".repeat(LINE_NUM_WIDTH));
 
-            let content = truncate_to_width(&line.content, content_max);
             let style = Theme::context_line().patch(sel);
-            let left = Line::from(vec![
+            let mut left_spans = vec![
                 Span::styled(num_l, Theme::line_number().patch(sel)),
                 Span::styled("  ", style),
-                Span::styled(content.clone(), style),
-            ]);
-            let right = Line::from(vec![
+            ];
+            left_spans.extend(truncated_spans.clone());
+            let mut right_spans = vec![
                 Span::styled(num_r, Theme::line_number().patch(sel)),
                 Span::styled("  ", style),
-                Span::styled(content, style),
-            ]);
-            (left, right)
+            ];
+            right_spans.extend(truncated_spans);
+
+            (Line::from(left_spans), Line::from(right_spans))
         }
         LineKind::Removed => {
             let num = line
                 .old_lineno
                 .map(|n| format!("{n:>LINE_NUM_WIDTH$}"))
                 .unwrap_or(" ".repeat(LINE_NUM_WIDTH));
-            let content = truncate_to_width(&line.content, content_max);
+            let bg_color = Theme::removed_line_bg_color();
             let style = Theme::removed_line_bg().patch(sel);
-            let left = Line::from(vec![
+
+            let colored_spans: Vec<Span<'static>> = truncated_spans
+                .into_iter()
+                .map(|s| Span::styled(s.content, s.style.bg(bg_color)))
+                .collect();
+
+            let mut left_spans = vec![
                 Span::styled(num, Theme::line_number().patch(sel)),
                 Span::styled(" -", style),
-                Span::styled(content, style),
-            ]);
-            let right = Line::default();
-            (left, right)
+            ];
+            left_spans.extend(colored_spans);
+
+            (Line::from(left_spans), Line::default())
         }
         LineKind::Added => {
             let num = line
                 .new_lineno
                 .map(|n| format!("{n:>LINE_NUM_WIDTH$}"))
                 .unwrap_or(" ".repeat(LINE_NUM_WIDTH));
-            let content = truncate_to_width(&line.content, content_max);
+            let bg_color = Theme::added_line_bg_color();
             let style = Theme::added_line_bg().patch(sel);
-            let left = Line::default();
-            let right = Line::from(vec![
+
+            let colored_spans: Vec<Span<'static>> = truncated_spans
+                .into_iter()
+                .map(|s| Span::styled(s.content, s.style.bg(bg_color)))
+                .collect();
+
+            let mut right_spans = vec![
                 Span::styled(num, Theme::line_number().patch(sel)),
                 Span::styled(" +", style),
-                Span::styled(content, style),
-            ]);
-            (left, right)
+            ];
+            right_spans.extend(colored_spans);
+
+            (Line::default(), Line::from(right_spans))
         }
     }
 }
