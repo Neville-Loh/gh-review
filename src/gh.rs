@@ -76,6 +76,38 @@ pub async fn fetch_file_content(repo: &str, path: &str, git_ref: &str) -> Result
     }
 }
 
+pub async fn reply_to_comment(
+    repo: &str,
+    pr_number: u64,
+    comment_id: u64,
+    body: &str,
+) -> Result<()> {
+    let url = format!("repos/{repo}/pulls/{pr_number}/comments/{comment_id}/replies");
+    let json_body = serde_json::json!({ "body": body });
+    let json_str = serde_json::to_string(&json_body)?;
+
+    let mut child = Command::new("gh")
+        .args(["api", &url, "-X", "POST", "--input", "-"])
+        .kill_on_drop(true)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()?;
+
+    use tokio::io::AsyncWriteExt;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(json_str.as_bytes()).await?;
+    }
+
+    let output = child.wait_with_output().await?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("Failed to post reply: {}", stderr.trim());
+    }
+
+    Ok(())
+}
+
 pub async fn submit_review(
     repo: &str,
     pr_number: u64,

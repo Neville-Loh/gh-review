@@ -58,7 +58,41 @@ impl DiffView {
         }
     }
 
-    // --- Comment expand ---
+    // --- Comment helpers ---
+
+    /// If cursor is on a comment row, walk back to the nearest CommentHeader and
+    /// return the GitHub API ID + author so we can post a reply.
+    pub fn comment_reply_target(&self) -> Option<ReplyTarget> {
+        match self.display_rows.get(self.cursor) {
+            Some(DisplayRow::CommentHeader { .. })
+            | Some(DisplayRow::CommentBodyLine { .. })
+            | Some(DisplayRow::CommentFooter) => {}
+            _ => return None,
+        }
+
+        for i in (0..=self.cursor).rev() {
+            match self.display_rows.get(i) {
+                Some(DisplayRow::CommentHeader {
+                    github_id: Some(gid),
+                    author,
+                    ..
+                }) => {
+                    return Some(ReplyTarget {
+                        github_id: *gid,
+                        author: author.clone(),
+                    });
+                }
+                Some(DisplayRow::CommentHeader {
+                    github_id: None, ..
+                }) => return None,
+                Some(DisplayRow::CommentBodyLine { .. }) | Some(DisplayRow::CommentFooter) => {
+                    continue
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
 
     /// Toggle expand/collapse if cursor is on a comment row. Returns true if toggled.
     pub fn toggle_comment_expand(&mut self) -> bool {
@@ -467,4 +501,9 @@ pub struct CommentTarget {
     pub file_idx: usize,
     pub line: usize,
     pub side: crate::types::Side,
+}
+
+pub struct ReplyTarget {
+    pub github_id: u64,
+    pub author: String,
 }

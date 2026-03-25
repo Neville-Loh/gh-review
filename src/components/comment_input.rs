@@ -14,6 +14,8 @@ pub struct CommentInput {
     pub file_path: String,
     pub line: usize,
     pub side: crate::types::Side,
+    pub reply_to_id: Option<u64>,
+    pub reply_author: String,
 }
 
 pub enum CommentAction {
@@ -32,6 +34,8 @@ impl CommentInput {
             file_path: String::new(),
             line: 0,
             side: crate::types::Side::Right,
+            reply_to_id: None,
+            reply_author: String::new(),
         }
     }
 
@@ -41,6 +45,16 @@ impl CommentInput {
         self.file_path = file_path;
         self.line = line;
         self.side = side;
+        self.reply_to_id = None;
+        self.reply_author.clear();
+        self.visible = true;
+    }
+
+    pub fn open_reply(&mut self, comment_id: u64, author: String) {
+        self.textarea = TextArea::default();
+        self.textarea.set_cursor_line_style(Style::default());
+        self.reply_to_id = Some(comment_id);
+        self.reply_author = author;
         self.visible = true;
     }
 
@@ -85,7 +99,11 @@ impl CommentInput {
         // Clear the background
         Widget::render(Clear, popup_area, buf);
 
-        let title = format!(" Comment on {}:{} ", self.file_path, self.line);
+        let title = if self.reply_to_id.is_some() {
+            format!(" Reply to @{} ", self.reply_author)
+        } else {
+            format!(" Comment on {}:{} ", self.file_path, self.line)
+        };
         let block = Block::default()
             .title(title)
             .borders(Borders::ALL)
