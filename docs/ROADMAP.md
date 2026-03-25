@@ -2,17 +2,18 @@
 
 ## Overview
 
-| Milestone | Status |
-|-----------|--------|
-| M1 — Read-only Diff Viewer | done |
-| M2 — Review Actions | done |
-| M2.6 — Search | done |
-| M3 — Full Review Comments | **next** |
-| M4 — Claude Review | planned |
-| M5 — Graphite Stacked PRs | planned |
-| M6 — Polish | later |
-| M7 — User Configuration | later |
-| M8 — gh-dash-rs Integration | future |
+| Milestone | Description | Status |
+|-----------|-------------|--------|
+| M1 — Read-only Diff Viewer | Parse diffs, unified + side-by-side rendering, file picker | done |
+| M2 — Review Actions | Inline comments, pending review submit, expand context, syntax highlighting | done |
+| M2.6 — Search | Regex search with smart-case, match highlighting, file picker filter | done |
+| M3 — Full Review Comments | Resolve/unresolve threads, suggestion diffs, review body, unapprove | **next** |
+| M4 — Claude Review | AI-powered code review via Claude API, inline comment display | planned |
+| M5 — Graphite Stacked PRs | Stack detection, navigate between PRs, diff against parent branch | planned |
+| M6 — Polish | Word-level diff, multi-line comments, status line | later |
+| M7 — User Configuration | TOML config, remappable keybindings, custom themes, script hooks | later |
+| M8 — gh-dash-rs Integration | Library crate extraction, native view inside gh-dash Rust rewrite | future |
+| M9 — AI Chat Panel | Side-by-side chat panel for discussing code with Claude while reviewing | future |
 
 ## Milestones
 
@@ -104,7 +105,7 @@ graph TD
     subgraph m3 [M3: Full Review Comments]
         RC1[Resolve comment thread] --> RC2[gh API: minimize/resolve]
         RC3[Unresolve comment thread] --> RC4[gh API: unresolve]
-        RC5["Suggestion blocks"] --> RC6["Pre-fill ```suggestion``` syntax"]
+        RC5["Suggestion diffs"] --> RC6["Render suggestions as inline diffs"]
         RC7[Approve with body] --> RC8[Review body textarea before submit]
         RC9[Request changes with body] --> RC8
         RC10[Unapprove] --> RC11["Dismiss own approval via API"]
@@ -118,15 +119,11 @@ graph TD
 - Uses the GitHub GraphQL API to minimize/resolve the thread
 - Resolved threads shown as collapsed with a visual indicator
 
-**Suggestion blocks**
-- When adding a comment, a keybinding pre-fills the body with GitHub suggestion syntax:
-  ````
-  ```suggestion
-  <selected line content>
-  ```
-  ````
-- Reviewer edits the suggested replacement inline
-- Suggestions are visible in the diff as a distinct comment style
+**Suggestion diffs**
+- Press `e` on a diff line to open the line content in an editable textarea
+- Edit freely — on save, compute the diff between original and edited text and auto-generate the GitHub ```` ```suggestion ```` block
+- Existing suggestion comments rendered as inline diffs showing the proposed change (old line -> suggested line)
+- Accept suggestion: apply as a commit directly from the TUI via GitHub API
 
 **Review submission with body**
 - When pressing `a` (approve), `r` (request changes), or `s` (comment), a textarea opens for the review body before submitting
@@ -224,14 +221,12 @@ gh-review ROKT/srs --stack 1234 1235 1236  # explicit stack order
 ```mermaid
 graph TD
     subgraph m6 [M6: Polish]
-        C1[Syntax highlighting] --> C2["syntect integration"]
         C3[Multi-line comment selection] --> C4["start_line + line range"]
         C7[Word-level diff highlighting]
         C9[Status line: review state + checks]
     end
 ```
 
-- Syntax highlighting for diff content (Rust, Go, Python, TypeScript, etc.)
 - Word-level diff within changed lines (highlight the exact characters that changed)
 - Multi-line comment selection (visual select a range, then comment)
 - Status line showing PR review state and CI check status
@@ -323,6 +318,16 @@ graph TD
 - Seamless transition: PR list -> review view -> back, no process suspension
 - Stack-aware PR grouping in the dashboard list view
 
+### M9 — AI Chat Panel (future)
+
+Side-by-side chat panel for discussing code with Claude while reviewing a PR.
+
+- Split the screen: diff on the left, chat on the right
+- Ask Claude about specific lines, functions, or design decisions with full diff context
+- Chat history persists for the duration of the review session
+- Reference code by selecting lines in the diff — context auto-injected into the chat
+- Claude responses can be converted into review comments with one key
+
 ## Feature Matrix
 
 | Status | Feature |
@@ -344,8 +349,9 @@ graph TD
 | done | `n` / `N` jump between matches |
 | done | Regex + smart-case matching |
 | done | File picker filter |
+| done | Syntax highlighting |
 | **next** | Resolve / unresolve comment threads |
-| **next** | Suggestion blocks |
+| **next** | Suggestion diffs (render + create + accept) |
 | **next** | Approve / request changes with body |
 | **next** | Unapprove with body |
 | **next** | Discard pending comment |
@@ -357,7 +363,6 @@ graph TD
 | planned | Diff against parent branch |
 | planned | Cumulative vs incremental toggle |
 | planned | Stack overview sidebar |
-| later | Syntax highlighting |
 | later | Word-level diff |
 | later | Multi-line comments |
 | later | Remappable keybindings |
@@ -365,3 +370,4 @@ graph TD
 | later | Custom script hooks |
 | future | gh-dash-rs native view |
 | future | Stack-aware PR grouping |
+| future | AI chat panel (side-by-side with diff) |
