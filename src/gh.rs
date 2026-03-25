@@ -47,6 +47,8 @@ pub async fn fetch_pr_files(repo: &str, pr_number: u64) -> Result<Vec<DiffFile>>
             deletions: f.deletions,
             hunks,
         });
+
+        crate::highlight::highlight_file(files.last_mut().unwrap());
     }
 
     Ok(files)

@@ -63,6 +63,7 @@ pub struct DiffLine {
     pub old_lineno: Option<usize>,
     pub new_lineno: Option<usize>,
     pub content: String,
+    pub highlighted_content: Option<ratatui::text::Line<'static>>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

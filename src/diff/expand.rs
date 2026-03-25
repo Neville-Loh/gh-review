@@ -33,6 +33,7 @@ fn expand_before(hunk: &mut Hunk, base_lines: &[&str], _head_lines: &[&str], cou
             old_lineno: Some(i),
             new_lineno: Some(expand_start_new + (i - expand_start)),
             content,
+            highlighted_content: None,
         });
     }
 
@@ -64,6 +65,7 @@ fn expand_after(hunk: &mut Hunk, base_lines: &[&str], _head_lines: &[&str], coun
             old_lineno: Some(i),
             new_lineno: Some(new_lineno),
             content,
+            highlighted_content: None,
         });
     }
 }

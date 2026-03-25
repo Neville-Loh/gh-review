@@ -3,7 +3,6 @@ use ratatui::{
     text::{Line, Span},
 };
 
-use crate::highlight::highlight;
 use crate::theme::Theme;
 use crate::types::{DiffFile, DiffLine, ExistingComment, LineKind, ReviewComment, Side};
 
@@ -187,7 +186,7 @@ const LINE_NUM_WIDTH: usize = 5;
 
 pub fn render_unified_row(
     row: &DisplayRow,
-    files: &[DiffFile],
+    _files: &[DiffFile],
     _width: u16,
     is_selected: bool,
 ) -> Line<'static> {
@@ -199,10 +198,7 @@ pub fn render_unified_row(
         DisplayRow::HunkHeader { text, .. } => {
             Line::from(vec![Span::styled(text.clone(), Theme::hunk_header())])
         }
-        DisplayRow::DiffLine { line, file_idx, .. } => {
-            let path = files.get(*file_idx).map(|f| f.path.as_str()).unwrap_or("");
-            render_unified_diff_line(line, path)
-        }
+        DisplayRow::DiffLine { line, .. } => render_unified_diff_line(line),
         DisplayRow::ExpandHint {
             available_lines, ..
         } => Line::from(vec![Span::styled(
@@ -229,7 +225,11 @@ pub fn render_unified_row(
                 COMMENT_INDENT.to_string()
             };
             let toggle = if *body_lines > 1 {
-                if *expanded { "▼" } else { "▶" }
+                if *expanded {
+                    "▼"
+                } else {
+                    "▶"
+                }
             } else {
                 " "
             };
@@ -309,7 +309,7 @@ pub fn render_unified_row(
     }
 }
 
-fn render_unified_diff_line(line: &DiffLine, path: &str) -> Line<'static> {
+fn render_unified_diff_line(line: &DiffLine) -> Line<'static> {
     let old_num = line
         .old_lineno
         .map(|n| format!("{n:>LINE_NUM_WIDTH$}"))
@@ -329,7 +329,10 @@ fn render_unified_diff_line(line: &DiffLine, path: &str) -> Line<'static> {
         LineKind::Context => (" ", Theme::context_line(), Color::Reset),
     };
 
-    let highlighted = highlight(&line, path);
+    let highlighted = line
+        .highlighted_content
+        .clone()
+        .unwrap_or_else(|| Line::from(line.content.to_string()));
 
     let mut spans = vec![
         Span::styled(old_num, Theme::line_number()),
@@ -355,10 +358,7 @@ pub fn render_sbs_row(
     is_selected: bool,
 ) -> (Line<'static>, Line<'static>) {
     match row {
-        DisplayRow::DiffLine { line, file_idx, .. } => {
-            let path = files.get(*file_idx).map(|f| f.path.as_str()).unwrap_or("");
-            render_sbs_diff_line(line, path, half_width, is_selected)
-        }
+        DisplayRow::DiffLine { line, .. } => render_sbs_diff_line(line, half_width, is_selected),
         _ => {
             let unified = render_unified_row(row, files, half_width * 2, is_selected);
             (unified.clone(), Line::default())
@@ -387,7 +387,6 @@ fn truncate_spans(spans: &[Span<'static>], max_chars: usize) -> Vec<Span<'static
 
 fn render_sbs_diff_line(
     line: &DiffLine,
-    path: &str,
     half_width: u16,
     is_selected: bool,
 ) -> (Line<'static>, Line<'static>) {
@@ -399,7 +398,10 @@ fn render_sbs_diff_line(
 
     let content_max = (half_width as usize).saturating_sub(LINE_NUM_WIDTH + 3);
 
-    let highlighted = highlight(line, path);
+    let highlighted = line
+        .highlighted_content
+        .clone()
+        .unwrap_or_else(|| Line::from(line.content.to_string()));
     let truncated_spans = truncate_spans(highlighted.spans.as_slice(), content_max);
 
     match line.kind {
