@@ -6,38 +6,45 @@ use std::sync::{LazyLock, Mutex};
 
 use crate::types::DiffFile;
 
+pub fn highlight_content(path: &str, content: &str) -> Vec<Line<'static>> {
+    let lang = detect_language(path).unwrap_or("text");
+    let mut highlighter = HIGHLIGHTER.lock().unwrap_or_else(|e| e.into_inner());
+    let ansi = highlighter
+        .highlight(lang, content)
+        .unwrap_or_else(|_| content.to_string());
+    ansi.as_bytes()
+        .into_text()
+        .unwrap_or_else(|_| Text::raw(content.to_string()))
+        .lines
+}
+
 static HIGHLIGHTER: LazyLock<Mutex<AnsiHighlighter>> =
     LazyLock::new(|| Mutex::new(AnsiHighlighter::new(builtin::github_dark())));
 
 pub fn highlight_file(file: &mut DiffFile) {
     let lang = detect_language(&file.path).unwrap_or("text");
+    let mut highlighter = HIGHLIGHTER.lock().unwrap_or_else(|e| e.into_inner());
 
-    let content: String = file
-        .hunks
-        .iter()
-        .flat_map(|hunk| &hunk.lines)
-        .map(|line| line.content.as_str())
-        .collect::<Vec<_>>()
-        .join("\n");
-
-    let mut highlighter = HIGHLIGHTER.lock().unwrap();
-    let highlighted_ansi = highlighter
-        .highlight(lang, &content)
-        .unwrap_or_else(|_| content.clone());
-
-    let tui_text = highlighted_ansi
-        .as_bytes()
-        .into_text()
-        .unwrap_or_else(|_| Text::raw(content));
-
-    let highlighted_lines: Vec<Option<Line<'static>>> =
-        tui_text.lines.into_iter().map(Some).collect();
-
-    let mut idx = 0;
     for hunk in &mut file.hunks {
-        for line in &mut hunk.lines {
-            line.highlighted_content = highlighted_lines.get(idx).cloned().flatten();
-            idx += 1;
+        let content = hunk
+            .lines
+            .iter()
+            .map(|line| line.content.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        let ansi = highlighter
+            .highlight(lang, &content)
+            .unwrap_or_else(|_| content.clone());
+
+        let highlighted_lines: Vec<Line<'static>> = ansi
+            .as_bytes()
+            .into_text()
+            .unwrap_or_else(|_| Text::raw(content))
+            .lines;
+
+        for (line, highlighted) in hunk.lines.iter_mut().zip(highlighted_lines) {
+            line.highlighted_content = Some(highlighted);
         }
     }
 }
