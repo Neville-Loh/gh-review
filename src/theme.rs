@@ -2,6 +2,7 @@ use ratatui::style::{Color, Modifier, Style};
 
 pub struct Theme;
 
+#[allow(dead_code)]
 impl Theme {
     pub fn added_line_bg_color() -> Color {
         Color::Rgb(0, 40, 0)

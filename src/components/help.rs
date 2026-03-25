@@ -32,7 +32,7 @@ const BINDINGS: &[(&str, &str)] = &[
     ("r", "Request changes"),
     ("s", "Submit review (comment only)"),
     ("o", "Open in browser"),
-    ("F1", "This help"),
+    ("!", "This help"),
     ("q", "Quit"),
 ];
 

@@ -63,6 +63,7 @@ impl FilePicker {
         }
     }
 
+    #[allow(dead_code)]
     pub fn selected_path(&self) -> Option<&str> {
         self.files.get(self.selected).map(|f| f.path.as_str())
     }

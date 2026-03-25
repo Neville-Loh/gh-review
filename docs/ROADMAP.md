@@ -2,17 +2,17 @@
 
 ## Overview
 
-```mermaid
-graph LR
-    M1["M1: Read-only Diff"] --> M2["M2: Review Actions"]
-    M2 --> M25["M2.5: Comment Management"]
-    M25 --> M26["M2.6: Search"]
-    M26 --> M3["M3: Stacked PR Support"]
-    M3 --> M4["M4: Polish"]
-    M4 --> M45["M4.5: User Configuration"]
-    M45 --> M5["M5: gh-dash-rs Integration"]
-    M5 --> M6["M6: Rich Navigation & Agent Review"]
-```
+| Milestone | Status |
+|-----------|--------|
+| M1 — Read-only Diff Viewer | done |
+| M2 — Review Actions | done |
+| M2.6 — Search | done |
+| M3 — Full Review Comments | **next** |
+| M4 — Claude Review | planned |
+| M5 — Graphite Stacked PRs | planned |
+| M6 — Polish | later |
+| M7 — User Configuration | later |
+| M8 — gh-dash-rs Integration | future |
 
 ## Milestones
 
@@ -60,65 +60,130 @@ graph TD
 - Vim-style navigation (gg, G, H/M/L, ]/[, zz/zt/zb, Ctrl+F/B)
 - Clean process shutdown (works as gh-dash subprocess)
 
-### M2.5 — Comment Management (next)
+### M2.6 — Search (done)
 
-```mermaid
-graph TD
-    subgraph m25 [M2.5: Comment Management]
-        CM1[Discard pending comment] --> CM2["Remove from pending list, rebuild display"]
-        CM3[Edit pending comment] --> CM4["Re-open textarea with existing body"]
-        CM5[Expand/collapse comments] --> CM6["Enter toggles, ▶/▼ indicator (done)"]
-    end
-```
-
-- **Discard pending comment** — cursor on a pending comment, press `x` or `d` to remove it from the pending review
-- **Edit pending comment** — cursor on a pending comment, press `c` or `e` to re-open the textarea pre-filled with the existing body
-- Expand/collapse multi-line comments — done (Enter to toggle)
-
-### M2.6 — Search
-
-Vim-style search across diff content and file names, matching the `/` and `?` patterns familiar to vim and less users.
+Vim-style search across diff content and file names.
 
 ```mermaid
 graph TD
     subgraph m26 [M2.6: Search]
-        SR1["/ forward search prompt"] --> SR2[Regex + literal matching engine]
+        SR1["/ forward search prompt"] --> SR2[Regex + smart-case matching engine]
         SR3["? backward search prompt"] --> SR2
         SR2 --> SR4["Highlight all matches in diff viewport"]
         SR4 --> SR5["n / N jump to next / previous match"]
-        SR6["File picker search: type to filter"] --> SR7["Fuzzy-match file names"]
+        SR6["File picker: / to filter"] --> SR7["Filter file names as you type"]
     end
 ```
 
 **Diff search (`/` and `?`)**
 - `/` opens a search prompt at the bottom of the screen (forward search)
-- `?` opens search in reverse direction (when help overlay is not active)
-- Supports literal and regex patterns
-- All matches highlighted in the diff viewport with a distinct style
-- `n` jumps to next match, `N` jumps to previous match
-- Search wraps around at end/beginning of diff
-- `Esc` or `Enter` on empty input exits search mode
-- Matches persist until a new search or explicit clear
+- `?` opens search in reverse direction (in diff view)
+- Regex patterns with smart-case (case-insensitive unless pattern contains uppercase)
+- Invalid regex silently escaped to a literal match
+- All matches highlighted in the diff viewport; current match gets a distinct style
+- `n` jumps to next match, `N` jumps to previous match; wraps at boundaries
+- `Esc` cancels search and restores cursor to pre-search position
+- `Enter` confirms search; match count displayed in search bar (`[3/12]`)
 
-**File picker search**
-- When file picker is focused, typing `/` activates a filter prompt
-- Fuzzy matching against file paths (e.g. `comp/diff` matches `src/components/diff_view.rs`)
-- Filtered list updates as you type, press `Enter` to select, `Esc` to cancel
+**File picker filter**
+- When file picker is focused, `/` activates a filter prompt
+- Filter against file paths; list updates as you type
+- `j`/`k` navigate filtered results, `Enter` to select, `Esc` to cancel
 
-**Keybinding considerations**
-- `n`/`N` currently navigate files — when a search is active, they switch to search navigation; when no search is active, they retain file navigation behavior
-- `?` currently shows help — resolve by using `?` for search only in diff view and keeping `?` for help in other contexts, or by moving help to `F1`
+**Resolved keybinding decisions**
+- `n`/`N` are dual-purpose: search navigation when a search is active, file navigation otherwise
+- `?` opens backward search in diff view, shows help overlay in file picker
+- Help is also available via `F1` in all contexts
 
-### M3 — Stacked PR Support
+### M3 — Full Review Comments (next)
+
+Complete the review comment workflow to cover all standard GitHub review operations.
+
+```mermaid
+graph TD
+    subgraph m3 [M3: Full Review Comments]
+        RC1[Resolve comment thread] --> RC2[gh API: minimize/resolve]
+        RC3[Unresolve comment thread] --> RC4[gh API: unresolve]
+        RC5["Suggestion blocks"] --> RC6["Pre-fill ```suggestion``` syntax"]
+        RC7[Approve with body] --> RC8[Review body textarea before submit]
+        RC9[Request changes with body] --> RC8
+        RC10[Unapprove] --> RC11["Dismiss own approval via API"]
+        RC12[Discard pending comment] --> RC13["Remove from pending list"]
+        RC14[Edit pending comment] --> RC15["Re-open textarea with existing body"]
+    end
+```
+
+**Resolve / unresolve threads**
+- Cursor on a comment thread, press a key to resolve (hide) or unresolve (unhide)
+- Uses the GitHub GraphQL API to minimize/resolve the thread
+- Resolved threads shown as collapsed with a visual indicator
+
+**Suggestion blocks**
+- When adding a comment, a keybinding pre-fills the body with GitHub suggestion syntax:
+  ````
+  ```suggestion
+  <selected line content>
+  ```
+  ````
+- Reviewer edits the suggested replacement inline
+- Suggestions are visible in the diff as a distinct comment style
+
+**Review submission with body**
+- When pressing `a` (approve), `r` (request changes), or `s` (comment), a textarea opens for the review body before submitting
+- Body is optional — submit empty to skip, just like the GitHub web UI
+- Pending comments are listed in the confirmation popup as a summary
+
+**Unapprove**
+- Dismiss your own prior approval via the GitHub API
+- Keybinding to unapprove with an optional body explaining why
+
+**Pending comment management**
+- Discard pending comment — cursor on a pending comment, press `x` to remove from the pending review
+- Edit pending comment — cursor on a pending comment, press `c` to re-open the textarea pre-filled with the existing body
+
+### M4 — Claude Review (planned)
+
+AI-powered code review using Claude. Send the PR diff and context to Claude for automated review feedback displayed inline.
+
+```mermaid
+graph TD
+    subgraph m4 [M4: Claude Review]
+        CR1["Fetch PR diff + metadata"] --> CR2["Build review prompt with context"]
+        CR2 --> CR3["Send to Claude API"]
+        CR3 --> CR4["Parse structured review response"]
+        CR4 --> CR5["Display AI comments inline in diff"]
+        CR5 --> CR6["User can accept / dismiss / reply to AI comments"]
+        CR7["--claude flag or keybinding"] --> CR1
+    end
+```
+
+**Diff-based review**
+- Send the unified diff, PR title, description, and file list to Claude
+- Claude returns structured review comments (file, line, body, severity)
+- AI comments displayed inline in the diff alongside human comments, visually distinct
+- User can accept (convert to a real review comment), dismiss, or reply
+
+**Integration**
+- `--claude` CLI flag triggers AI review on PR load
+- In-app keybinding to request Claude review on demand
+- API key configured via environment variable (`ANTHROPIC_API_KEY`) or config file
+- Rate limiting and cost awareness — show token usage in status bar
+
+**Review quality**
+- Context-aware: include file paths, hunk context, and PR description
+- Configurable review focus (security, performance, correctness, style)
+- Severity levels: error, warning, suggestion, nit
+
+### M5 — Graphite Stacked PRs (planned)
 
 Graphite stacked PRs require reviewing each PR against its parent branch (not main), navigating between PRs in a stack, and understanding where a PR sits in the dependency chain.
 
 ```mermaid
 graph TD
-    subgraph m3 [M3: Stacked PRs]
+    subgraph m5 [M5: Stacked PRs]
         S1["Detect stack via gt CLI or GitHub API"] --> S2[Build stack graph: parent/child relationships]
         S2 --> S3["Stack navigator panel (1/5, 2/5, ...)"]
-        S3 --> S4["Jump between PRs in stack (] / [ keys)"]
+        S3 --> S4["Jump between PRs in stack"]
         S4 --> S5[Diff against parent branch, not main]
         S5 --> S6[Show cumulative stack diff option]
         S2 --> S7[Stack overview sidebar tab]
@@ -129,7 +194,7 @@ graph TD
 **Stack detection**
 - Run `gt stack` or parse PR base branches to detect the stack
 - Each PR in a Graphite stack targets its parent PR's branch as the base, not `main`
-- Build an ordered list: `main ← PR#1 ← PR#2 ← PR#3`
+- Build an ordered list: `main <- PR#1 <- PR#2 <- PR#3`
 
 **Stack navigation**
 - Show stack position in title bar: `[2/5] ROKT/srs #1234 — Add feature X`
@@ -154,15 +219,13 @@ gh-review ROKT/srs 1234 --stack      # auto-detect stack, start at this PR
 gh-review ROKT/srs --stack 1234 1235 1236  # explicit stack order
 ```
 
-### M4 — Polish
+### M6 — Polish (later)
 
 ```mermaid
 graph TD
-    subgraph m4 [M4: Polish]
+    subgraph m6 [M6: Polish]
         C1[Syntax highlighting] --> C2["syntect integration"]
         C3[Multi-line comment selection] --> C4["start_line + line range"]
-        C5[Reply to existing threads]
-        C6[Resolve/unresolve threads]
         C7[Word-level diff highlighting]
         C9[Status line: review state + checks]
     end
@@ -171,16 +234,15 @@ graph TD
 - Syntax highlighting for diff content (Rust, Go, Python, TypeScript, etc.)
 - Word-level diff within changed lines (highlight the exact characters that changed)
 - Multi-line comment selection (visual select a range, then comment)
-- Reply to and resolve existing review threads
 - Status line showing PR review state and CI check status
 
-### M4.5 — User Configuration
+### M7 — User Configuration (later)
 
 User-facing config file (`~/.config/gh-review/config.toml`) for personalizing the tool without recompiling.
 
 ```mermaid
 graph TD
-    subgraph m45 [M4.5: User Configuration]
+    subgraph m7 [M7: User Configuration]
         UC1["Config file loader (~/.config/gh-review/config.toml)"] --> UC2[Remappable keybindings]
         UC1 --> UC3[Custom color themes]
         UC1 --> UC4[Custom scripts via hooks]
@@ -238,11 +300,11 @@ on_approve = "notify-send 'PR approved' '$GH_REVIEW_REPO#$GH_REVIEW_PR'"
 on_submit = "~/.config/gh-review/scripts/post-review.sh"
 ```
 
-### M5 — gh-dash-rs Integration (future)
+### M8 — gh-dash-rs Integration (future)
 
 ```mermaid
 graph TD
-    subgraph m5 [M5: gh-dash-rs Integration]
+    subgraph m8 [M8: gh-dash-rs Integration]
         D1[Extract diff + components into library crate]
         D2[Replace gh subprocess with gh-dash-github API crate]
         D3["Add PrReviewView implementing Component trait"]
@@ -258,131 +320,48 @@ graph TD
 - Extract `diff/` and `components/` into a reusable library crate
 - Replace `gh` CLI subprocess calls with direct API calls via `gh-dash-github`
 - Embed as a native view inside the gh-dash Rust rewrite
-- Seamless transition: PR list → review view → back, no process suspension
+- Seamless transition: PR list -> review view -> back, no process suspension
 - Stack-aware PR grouping in the dashboard list view
-
-### M6 — Rich Navigation & Agent Review (future)
-
-Clone the PR's repo into a local worktree so reviewers can navigate full source context — not just the diff. Optionally hand the worktree to an AI agent for automated review.
-
-```mermaid
-graph TD
-    subgraph m6 [M6: Rich Navigation & Agent Review]
-        RN1["Clone / fetch repo on PR open"] --> RN2["Create git worktree at PR head ref"]
-        RN2 --> RN3["Source browser: tree view + file viewer"]
-        RN3 --> RN4["Jump from diff line to full file context"]
-        RN2 --> RN5["Agent mode: pass worktree to AI reviewer"]
-        RN5 --> RN6["Agent writes review comments back"]
-        RN7["Worktree lifecycle management"] --> RN2
-        RN7 --> RN8["Cleanup on quit / TTL expiry"]
-    end
-```
-
-**Repo checkout**
-- On PR open, clone (or fetch into existing clone) the repo into a managed cache directory
-- Create a git worktree checked out at the PR's head commit — isolated from any user working copy
-- Worktrees are named by `repo/pr-number` and reused across sessions
-- Shallow clone by default (`--depth=1 --single-branch`) to minimize disk and network; full clone opt-in via config
-
-**Source navigation (user)**
-- New panel: source tree browser showing the full repo file tree at the PR's head ref
-- Open any file in a read-only viewer with syntax highlighting (reuses M4 syntect integration)
-- Jump from a diff line directly to the full file at that line — see surrounding context without the expand-10-lines limitation
-- Search across the full repo source (extends M2.6 search to non-diff files)
-- Keybinding: `gd` — "go to definition" jumps from diff to source view; `gf` — "go to file" opens the tree browser
-
-**Agent review mode**
-- `--agent <command>` CLI flag passes the worktree path to an external AI review tool
-- The agent receives: worktree path, list of changed files, PR metadata (title, description, base branch)
-- Agent output is parsed as review comments and displayed inline in the diff, same as human comments
-- Supports any agent that accepts a directory and outputs structured review JSON (GitHub review comment format)
-- Built-in integration template for common agents (e.g. Claude, Copilot CLI, custom scripts)
-
-```bash
-gh-review octocat/hello-world 42 --agent "my-review-agent"
-```
-
-Environment variables available to the agent:
-```
-GH_REVIEW_WORKTREE=/tmp/gh-review/octocat-hello-world/pr-42
-GH_REVIEW_REPO=octocat/hello-world
-GH_REVIEW_PR=42
-GH_REVIEW_BASE=main
-GH_REVIEW_HEAD=feature-branch
-GH_REVIEW_CHANGED_FILES=src/app.rs,src/types.rs
-```
-
-**Worktree lifecycle**
-- Worktrees stored in `~/.cache/gh-review/worktrees/`
-- Automatic cleanup: remove worktrees older than configurable TTL (default 7 days)
-- Manual cleanup: `gh-review clean` command
-- Disk usage shown in status bar when a worktree is active
 
 ## Feature Matrix
 
-```mermaid
-graph LR
-    subgraph done [Done]
-        F1[Unified diff]
-        F2[Side-by-side diff]
-        F3[File navigation]
-        F4[Inline commenting]
-        F5[Pending review submit]
-        F6[Expand context]
-        F7[Existing comment display]
-        F8[Help overlay]
-        Fv[Vim navigation]
-        Fec[Expand/collapse comments]
-        Frc[Review confirmation popup]
-    end
-
-    subgraph next25 [Next: Comment Management]
-        Fd[Discard pending comment]
-        Fe[Edit pending comment]
-    end
-
-    subgraph next26 [Next: Search]
-        Fs1["/ forward search in diff"]
-        Fs2["? backward search in diff"]
-        Fs3["n / N jump between matches"]
-        Fs4[Regex + literal matching]
-        Fs5[File picker fuzzy filter]
-    end
-
-    subgraph next [Next: Stacked PRs]
-        F9[Stack detection via gt CLI]
-        F10[Stack navigator panel]
-        F11["Jump between stack PRs (] / [)"]
-        F12[Diff against parent branch]
-        F13[Cumulative vs incremental toggle]
-        F14[Stack overview sidebar]
-    end
-
-    subgraph later [Later: Polish]
-        F15[Syntax highlighting]
-        F16[Word-level diff]
-        F17[Multi-line comments]
-        F18[Reply to threads]
-    end
-
-    subgraph later45 [Later: User Configuration]
-        F19[Remappable keybindings]
-        F19b[Custom themes]
-        F19c[Custom script hooks]
-        F19d[TOML config file]
-    end
-
-    subgraph future [Future]
-        F20[gh-dash-rs native view]
-        F21[Suggest changes]
-        F22[Stack-aware PR grouping]
-    end
-
-    subgraph future6 [Future: Rich Nav & Agent]
-        F23[Repo clone + worktree checkout]
-        F24[Source tree browser]
-        F25["gd / gf jump to full source"]
-        F26[Agent review via worktree]
-        F27[Worktree lifecycle + cleanup]
-    end
-```
+| Status | Feature |
+|--------|---------|
+| done | Unified diff |
+| done | Side-by-side diff |
+| done | File navigation |
+| done | Inline commenting |
+| done | Pending review submit |
+| done | Expand context |
+| done | Existing comment display |
+| done | Help overlay |
+| done | Vim navigation |
+| done | Expand/collapse comments |
+| done | Review confirmation popup |
+| done | Reply to comment threads |
+| done | `/` forward search in diff |
+| done | `?` backward search in diff |
+| done | `n` / `N` jump between matches |
+| done | Regex + smart-case matching |
+| done | File picker filter |
+| **next** | Resolve / unresolve comment threads |
+| **next** | Suggestion blocks |
+| **next** | Approve / request changes with body |
+| **next** | Unapprove with body |
+| **next** | Discard pending comment |
+| **next** | Edit pending comment |
+| planned | Claude AI review |
+| planned | Stack detection via gt CLI |
+| planned | Stack navigator panel |
+| planned | Jump between stack PRs |
+| planned | Diff against parent branch |
+| planned | Cumulative vs incremental toggle |
+| planned | Stack overview sidebar |
+| later | Syntax highlighting |
+| later | Word-level diff |
+| later | Multi-line comments |
+| later | Remappable keybindings |
+| later | Custom themes |
+| later | Custom script hooks |
+| future | gh-dash-rs native view |
+| future | Stack-aware PR grouping |
