@@ -28,7 +28,7 @@ impl ReviewBar {
             Span::styled("ubmit ", Theme::review_bar_label()),
             Span::styled(" [t]", Theme::review_bar_key()),
             Span::styled("oggle view ", Theme::review_bar_label()),
-            Span::styled(" [?]", Theme::review_bar_key()),
+            Span::styled(" [!]", Theme::review_bar_key()),
             Span::styled(" help ", Theme::review_bar_label()),
         ];
 

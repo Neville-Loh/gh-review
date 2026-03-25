@@ -80,9 +80,21 @@ gh-dash (browse PRs)
 | `]` / `}` | Next hunk |
 | `[` / `{` | Previous hunk |
 | `)` / `(` | Next / previous change |
-| `n` / `N` | Next / previous file |
+| `n` / `N` | Next / previous file (or search match when search active) |
 | `zz` / `zt` / `zb` | Center / top / bottom cursor in viewport |
 | `Tab` | Switch focus between file list and diff |
+
+### Search
+
+| Key | Action |
+|-----|--------|
+| `/` | Search forward (regex, smart-case) |
+| `?` | Search backward (in diff view) |
+| `n` / `N` | Next / previous search match |
+| `Esc` | Cancel search and restore cursor |
+| `Enter` | Confirm search |
+
+In the file picker, `/` opens a fuzzy file filter instead.
 
 ### Diff
 
@@ -109,36 +121,52 @@ Comments are batched into a pending review and submitted together when you press
 | Key | Action |
 |-----|--------|
 | `o` | Open PR in browser |
-| `?` | Show help overlay |
+| `!` | Show help overlay |
 | `q` | Quit |
 
 ## Architecture
 
 ```
 src/
-  main.rs              CLI entry point (clap)
-  app.rs               Root state, event loop, key dispatch
-  event.rs             Async event channel (crossterm + tokio)
-  gh.rs                GitHub API via gh CLI subprocess
-  types.rs             Domain types
-  theme.rs             Colors and styles
+  main.rs                  CLI entry point (clap), terminal setup
+  event.rs                 Async event channel (crossterm + tokio)
+  gh.rs                    GitHub API via gh CLI subprocess
+  types.rs                 Domain types (DiffFile, Hunk, ReviewComment, etc.)
+  theme.rs                 Colors and styles
+  highlight.rs             Syntax highlighting (arborium)
+  app/
+    mod.rs                 App struct, state, event dispatch, data loading
+    actions.rs             Action enum and key-to-action mapping
+    handlers.rs            Action execution, modal key handlers, async commands
+    ui.rs                  Layout and drawing
   diff/
-    parser.rs          Parse unified diff into structured hunks
-    renderer.rs        Render unified + side-by-side views
-    expand.rs          Fetch and splice expanded context
+    model.rs               DisplayRow types and display row builder
+    renderer.rs            Unified + side-by-side row rendering
+    parser.rs              Parse unified diff patches into structured hunks
+    expand.rs              Fetch and splice expanded context lines
+  search/
+    mod.rs                 Regex search engine with match navigation
+    tests.rs               Search unit tests
   components/
-    diff_view.rs       Scrollable diff viewport
-    file_picker.rs     File list sidebar
-    comment_input.rs   Inline comment textarea popup
-    review_bar.rs      Bottom status bar
-    help.rs            Keybinding help overlay
+    diff_view/
+      mod.rs               Scrollable diff viewport state and query helpers
+      navigation.rs        Vim-style cursor movement (scroll, jump, page)
+      draw.rs              Unified and side-by-side rendering
+    file_picker.rs         File list sidebar with fuzzy filter
+    comment_input.rs       Inline comment textarea popup
+    search_bar.rs          Search prompt with match count display
+    review_bar.rs          Bottom status bar
+    review_confirm.rs      Review submission confirmation popup
+    help.rs                Keybinding help overlay
 ```
+
+Key handling uses an **Action dispatch pattern**: keys are mapped to an `Action` enum via a pure function (`key_to_action`), then executed separately (`execute_action`). Modal states (search bar, comment input, review confirm, file filter, help) each have dedicated handlers.
 
 All GitHub API calls go through the `gh` CLI, reusing your existing authentication. No tokens or OAuth configuration needed.
 
 ## Roadmap
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for planned features including search, stacked PR support, syntax highlighting, and more.
+See [docs/ROADMAP.md](docs/ROADMAP.md) for planned features including stacked PR support, syntax highlighting, configuration, and more.
 
 ## Contributing
 

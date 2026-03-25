@@ -112,6 +112,7 @@ pub enum DiffMode {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct PrMetadata {
     pub number: u64,
     pub title: String,
@@ -146,6 +147,7 @@ pub struct GhFile {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct ExistingComment {
     pub id: u64,
     pub path: String,
