@@ -342,7 +342,7 @@ mod tests {
 
     #[test]
     fn searchable_text_returns_none_for_comment_rows() {
-        let row = DisplayRow::CommentFooter;
+        let row = DisplayRow::CommentFooter { is_reply: false };
         assert_eq!(searchable_text(&row), None);
     }
 
@@ -732,7 +732,7 @@ mod tests {
 
     #[test]
     fn search_skips_comment_footer() {
-        let rows = vec![diff_row("real match"), DisplayRow::CommentFooter];
+        let rows = vec![diff_row("real match"), DisplayRow::CommentFooter { is_reply: false }];
         let mut s = SearchState::new();
         s.apply("match", SearchDirection::Forward, &rows, 0);
         assert_eq!(s.match_info().1, 1); // only the diff row

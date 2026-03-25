@@ -154,6 +154,8 @@ pub struct ExistingComment {
     pub user: PrUser,
     #[serde(rename = "created_at")]
     pub created_at: String,
+    #[serde(default)]
+    pub in_reply_to_id: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
