@@ -163,6 +163,7 @@ impl Default for Keymap {
         diff_view.insert(KeyCode::Char('R').into(), &command::resolve);
         diff_view.insert(KeyCode::Char('y').into(), &command::accept_suggestion);
         diff_view.insert(KeyCode::Char('v').into(), &command::visual);
+        diff_view.insert(KeyCode::Char('V').into(), &command::visual);
         diff_view.insert(KeyCode::Char('u').into(), &command::unapprove);
         diff_view.insert(KeyCode::Char('o').into(), &command::open_browser);
         diff_view.insert(KeyCode::Char(':').into(), &command::open_command_mode);
