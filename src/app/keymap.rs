@@ -40,9 +40,13 @@ impl KeyCombo {
 
 impl From<&KeyEvent> for KeyCombo {
     fn from(event: &KeyEvent) -> Self {
+        let mut modifiers = event.modifiers;
+        if let KeyCode::Char(_) = event.code {
+            modifiers.remove(KeyModifiers::SHIFT);
+        }
         Self {
             code: event.code,
-            modifiers: event.modifiers,
+            modifiers,
         }
     }
 }
