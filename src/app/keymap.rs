@@ -151,7 +151,7 @@ impl Default for Keymap {
 
         diff_view.insert(KeyCode::Enter.into(), &command::toggle_comment);
         diff_view.insert(KeyCode::Char('t').into(), &command::toggle_view);
-        diff_view.insert(KeyCode::Char('c').into(), &command::comment);
+        diff_view.insert(KeyCode::Char('c').into(), &command::comment_on_line);
         diff_view.insert(KeyCode::Char('e').into(), &command::suggest);
         diff_view.insert(KeyCode::Char('E').into(), &command::expand);
 

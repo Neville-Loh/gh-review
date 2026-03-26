@@ -14,6 +14,7 @@ pub struct ReviewConfirm {
     pub visible: bool,
     pub event: ReviewEvent,
     pub pending_count: usize,
+    pub with_body: bool,
     pub textarea: TextArea<'static>,
 }
 
@@ -25,13 +26,19 @@ impl ReviewConfirm {
             visible: false,
             event: ReviewEvent::Comment,
             pending_count: 0,
+            with_body: false,
             textarea,
         }
     }
 
     pub fn show(&mut self, event: ReviewEvent, pending_count: usize) {
+        self.show_with_body(event, pending_count, false);
+    }
+
+    pub fn show_with_body(&mut self, event: ReviewEvent, pending_count: usize, with_body: bool) {
         self.event = event;
         self.pending_count = pending_count;
+        self.with_body = with_body;
         self.textarea = TextArea::default();
         self.textarea.set_cursor_line_style(Style::default());
         self.visible = true;
@@ -54,23 +61,6 @@ impl ReviewConfirm {
             return;
         }
 
-        let width = 60u16.min(area.width.saturating_sub(4));
-        let height = 14u16.min(area.height.saturating_sub(4));
-        let x = area.x + (area.width.saturating_sub(width)) / 2;
-        let y = area.y + (area.height.saturating_sub(height)) / 2;
-        let popup_area = Rect::new(x, y, width, height);
-
-        Widget::render(Clear, popup_area, buf);
-
-        let title = " Submit Review ";
-        let block = Block::default()
-            .title(title)
-            .borders(Borders::ALL)
-            .border_style(Theme::border_focused());
-
-        let inner = block.inner(popup_area);
-        Widget::render(block, popup_area, buf);
-
         let action_style = match self.event {
             ReviewEvent::Approve => Theme::status_added(),
             ReviewEvent::RequestChanges => Theme::status_deleted(),
@@ -88,6 +78,78 @@ impl ReviewConfirm {
             "  with no inline comments".to_string()
         };
 
+        if self.with_body {
+            self.draw_with_body(area, buf, action_style, &comments_line);
+        } else {
+            self.draw_confirm_only(area, buf, action_style, &comments_line);
+        }
+    }
+
+    fn draw_confirm_only(
+        &self,
+        area: Rect,
+        buf: &mut Buffer,
+        action_style: Style,
+        comments_line: &str,
+    ) {
+        let width = 50u16.min(area.width.saturating_sub(4));
+        let height = 8u16.min(area.height.saturating_sub(4));
+        let x = area.x + (area.width.saturating_sub(width)) / 2;
+        let y = area.y + (area.height.saturating_sub(height)) / 2;
+        let popup_area = Rect::new(x, y, width, height);
+
+        Widget::render(Clear, popup_area, buf);
+
+        let block = Block::default()
+            .title(" Submit Review ")
+            .borders(Borders::ALL)
+            .border_style(Theme::border_focused());
+        let inner = block.inner(popup_area);
+        Widget::render(block, popup_area, buf);
+
+        let lines = vec![
+            Line::default(),
+            Line::from(vec![
+                Span::styled("  Action: ", Theme::review_bar_label()),
+                Span::styled(self.event.label().to_string(), action_style),
+            ]),
+            Line::from(vec![Span::styled(
+                comments_line.to_string(),
+                Theme::review_bar_label(),
+            )]),
+            Line::default(),
+            Line::from(vec![
+                Span::styled("  Enter", Theme::review_bar_key()),
+                Span::styled(" confirm  ", Theme::review_bar_label()),
+                Span::styled("Esc", Theme::review_bar_key()),
+                Span::styled(" cancel", Theme::review_bar_label()),
+            ]),
+        ];
+        Widget::render(Paragraph::new(lines), inner, buf);
+    }
+
+    fn draw_with_body(
+        &self,
+        area: Rect,
+        buf: &mut Buffer,
+        action_style: Style,
+        comments_line: &str,
+    ) {
+        let width = 60u16.min(area.width.saturating_sub(4));
+        let height = 14u16.min(area.height.saturating_sub(4));
+        let x = area.x + (area.width.saturating_sub(width)) / 2;
+        let y = area.y + (area.height.saturating_sub(height)) / 2;
+        let popup_area = Rect::new(x, y, width, height);
+
+        Widget::render(Clear, popup_area, buf);
+
+        let block = Block::default()
+            .title(" Submit Review ")
+            .borders(Borders::ALL)
+            .border_style(Theme::border_focused());
+        let inner = block.inner(popup_area);
+        Widget::render(block, popup_area, buf);
+
         let chunks = Layout::vertical([
             Constraint::Length(3),
             Constraint::Length(1),
@@ -101,7 +163,10 @@ impl ReviewConfirm {
                 Span::styled("  Action: ", Theme::review_bar_label()),
                 Span::styled(self.event.label().to_string(), action_style),
             ]),
-            Line::from(vec![Span::styled(comments_line, Theme::review_bar_label())]),
+            Line::from(vec![Span::styled(
+                comments_line.to_string(),
+                Theme::review_bar_label(),
+            )]),
         ];
         Widget::render(Paragraph::new(header_lines), chunks[0], buf);
 

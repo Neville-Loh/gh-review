@@ -54,24 +54,35 @@ impl App {
     // --- Modal key handlers ---
 
     fn handle_review_confirm_key(&mut self, key: crossterm::event::KeyEvent) {
-        let is_submit = matches!(key.code,
-            KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL)
-        );
-
-        if is_submit {
-            let event = self.review_confirm.event;
-            let body = self.review_confirm.body_text();
-            self.review_confirm.hide();
-            if event == ReviewEvent::Unapprove {
-                self.unapprove(body);
+        if self.review_confirm.with_body {
+            let is_submit = matches!(key.code,
+                KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL)
+            );
+            if is_submit {
+                self.confirm_review_submit();
+            } else if key.code == KeyCode::Esc {
+                self.review_confirm.hide();
             } else {
-                self.submit_review(event, body);
+                let input: Input = key.into();
+                self.review_confirm.handle_input(input);
             }
-        } else if key.code == KeyCode::Esc {
-            self.review_confirm.hide();
         } else {
-            let input: Input = key.into();
-            self.review_confirm.handle_input(input);
+            match key.code {
+                KeyCode::Enter => self.confirm_review_submit(),
+                KeyCode::Esc => self.review_confirm.hide(),
+                _ => {}
+            }
+        }
+    }
+
+    fn confirm_review_submit(&mut self) {
+        let event = self.review_confirm.event;
+        let body = self.review_confirm.body_text();
+        self.review_confirm.hide();
+        if event == ReviewEvent::Unapprove {
+            self.unapprove(body);
+        } else {
+            self.submit_review(event, body);
         }
     }
 
