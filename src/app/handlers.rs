@@ -19,6 +19,11 @@ impl App {
             return;
         }
 
+        if self.command_bar.active {
+            self.handle_command_bar_key(key.code);
+            return;
+        }
+
         if self.search_bar.active {
             self.handle_search_bar_key(key.code);
             return;
@@ -67,6 +72,29 @@ impl App {
         } else {
             let input: Input = key.into();
             self.review_confirm.handle_input(input);
+        }
+    }
+
+    fn handle_command_bar_key(&mut self, code: KeyCode) {
+        match code {
+            KeyCode::Enter => {
+                if let Some(cmd) = self.command_bar.resolve() {
+                    self.command_bar.close();
+                    (cmd.execute)(self);
+                } else {
+                    let input = self.command_bar.input.clone();
+                    self.command_bar.close();
+                    if !input.is_empty() {
+                        self.status_msg = format!("Unknown command: {input}");
+                        self.status_is_error = true;
+                    }
+                }
+            }
+            KeyCode::Esc => self.command_bar.close(),
+            KeyCode::Tab => self.command_bar.cycle_completion(),
+            KeyCode::Backspace => self.command_bar.pop_char(),
+            KeyCode::Char(c) => self.command_bar.push_char(c),
+            _ => {}
         }
     }
 

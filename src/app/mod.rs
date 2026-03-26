@@ -5,6 +5,7 @@ mod ui;
 
 use tokio::sync::mpsc;
 
+use crate::components::command_bar::CommandBar;
 use crate::components::comment_input::CommentInput;
 use crate::components::diff_view::DiffView;
 use crate::components::file_picker::FilePicker;
@@ -36,6 +37,7 @@ pub struct App {
     pub(crate) comment_input: CommentInput,
     pub(crate) review_confirm: ReviewConfirm,
     pub(crate) search_bar: SearchBar,
+    pub(crate) command_bar: CommandBar,
 
     pub(crate) focus: Focus,
     pub(crate) show_help: bool,
@@ -65,6 +67,7 @@ impl App {
             comment_input: CommentInput::new(),
             review_confirm: ReviewConfirm::new(),
             search_bar: SearchBar::new(),
+            command_bar: CommandBar::new(),
             focus: Focus::DiffView,
             show_help: false,
             status_msg: String::new(),

@@ -49,7 +49,9 @@ impl App {
             self.focus == Focus::DiffView,
         );
 
-        if self.search_bar.active {
+        if self.command_bar.active {
+            self.command_bar.draw(main_layout[2], frame.buffer_mut());
+        } else if self.search_bar.active {
             let (curr, total) = self.diff_view.search.match_info();
             self.search_bar
                 .draw(main_layout[2], frame.buffer_mut(), curr, total);

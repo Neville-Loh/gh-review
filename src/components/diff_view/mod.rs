@@ -372,8 +372,8 @@ pub struct ThreadResolveTarget {
     pub is_resolved: bool,
 }
 
-#[allow(dead_code)]
 pub struct SuggestionTarget {
+    #[allow(dead_code)]
     pub github_id: u64,
     pub suggested: String,
     pub file_idx: usize,
