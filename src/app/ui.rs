@@ -14,11 +14,18 @@ impl App {
     pub fn draw(&mut self, frame: &mut Frame) {
         let size = frame.area();
 
+        let completion_h = if self.command_bar.active {
+            self.command_bar.completion_height() + 1
+        } else {
+            0
+        };
+
         let main_layout = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
                 Constraint::Length(1),
                 Constraint::Min(0),
+                Constraint::Length(completion_h),
                 Constraint::Length(1),
             ])
             .split(size);
@@ -50,14 +57,17 @@ impl App {
         );
 
         if self.command_bar.active {
-            self.command_bar.draw(main_layout[2], frame.buffer_mut());
+            self.command_bar
+                .draw_completions(main_layout[2], frame.buffer_mut());
+            self.command_bar
+                .draw_input(main_layout[3], frame.buffer_mut());
         } else if self.search_bar.active {
             let (curr, total) = self.diff_view.search.match_info();
             self.search_bar
-                .draw(main_layout[2], frame.buffer_mut(), curr, total);
+                .draw(main_layout[3], frame.buffer_mut(), curr, total);
         } else {
             ReviewBar::draw(
-                main_layout[2],
+                main_layout[3],
                 frame.buffer_mut(),
                 self.pending_comments.len(),
                 &self.status_msg,
