@@ -260,13 +260,13 @@ pub async fn fetch_review_threads(
             for node in nodes {
                 let thread_id = node["id"].as_str().unwrap_or_default().to_string();
                 let is_resolved = node["isResolved"].as_bool().unwrap_or(false);
-                if let Some(first_comment) = node["comments"]["nodes"].as_array().and_then(|a| a.first()) {
-                    if let Some(db_id) = first_comment["databaseId"].as_u64() {
-                        thread_map.insert(db_id, ThreadInfo {
-                            thread_node_id: thread_id,
-                            is_resolved,
-                        });
-                    }
+                if let Some(first_comment) = node["comments"]["nodes"].as_array().and_then(|a| a.first())
+                    && let Some(db_id) = first_comment["databaseId"].as_u64()
+                {
+                    thread_map.insert(db_id, ThreadInfo {
+                        thread_node_id: thread_id,
+                        is_resolved,
+                    });
                 }
             }
         }
