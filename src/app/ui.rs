@@ -42,6 +42,11 @@ impl App {
 
         let diff_height = content_layout[1].height.saturating_sub(2) as usize;
         self.visible_height = diff_height;
+        let new_wrap_width = content_layout[1].width.saturating_sub(2) as usize;
+        if new_wrap_width != self.diff_view.wrap_width {
+            self.diff_view.wrap_width = new_wrap_width;
+            self.rebuild_display();
+        }
         self.diff_view.ensure_visible(diff_height);
 
         self.file_picker.draw(

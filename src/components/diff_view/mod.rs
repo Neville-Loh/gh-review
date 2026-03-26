@@ -13,7 +13,9 @@ pub struct DiffView {
     pub search: SearchState,
     pub(crate) display_rows: Vec<DisplayRow>,
     pub(crate) files: Vec<DiffFile>,
-    expanded_comments: HashSet<usize>,
+    pub(crate) expanded_threads: HashSet<u64>,
+    pub(crate) expanded_pending: HashSet<usize>,
+    pub(crate) wrap_width: usize,
     pub visual_anchor: Option<usize>,
 }
 
@@ -26,7 +28,9 @@ impl DiffView {
             search: SearchState::new(),
             display_rows: Vec::new(),
             files: Vec::new(),
-            expanded_comments: HashSet::new(),
+            expanded_threads: HashSet::new(),
+            expanded_pending: HashSet::new(),
+            wrap_width: 120,
             visual_anchor: None,
         }
     }
@@ -43,8 +47,10 @@ impl DiffView {
             files,
             existing_comments,
             pending_comments,
-            &self.expanded_comments,
+            &self.expanded_threads,
+            &self.expanded_pending,
             thread_map,
+            self.wrap_width,
         );
         self.search.recompute(&self.display_rows);
     }
@@ -94,21 +100,36 @@ impl DiffView {
         None
     }
 
-    /// Toggle expand/collapse if cursor is on a comment row. Returns true if toggled.
+    /// Toggle expand/collapse for the thread at cursor. Returns true if toggled.
     pub fn toggle_comment_expand(&mut self) -> bool {
-        let comment_id = match self.display_rows.get(self.cursor) {
-            Some(DisplayRow::CommentHeader { comment_id, .. }) => Some(*comment_id),
-            _ => None,
-        };
-        if let Some(cid) = comment_id {
-            if self.expanded_comments.contains(&cid) {
-                self.expanded_comments.remove(&cid);
-            } else {
-                self.expanded_comments.insert(cid);
+        let row = self.display_rows.get(self.cursor);
+        match row {
+            Some(DisplayRow::CommentHeader {
+                thread_root_id: Some(root_id),
+                ..
+            }) => {
+                let id = *root_id;
+                if self.expanded_threads.contains(&id) {
+                    self.expanded_threads.remove(&id);
+                } else {
+                    self.expanded_threads.insert(id);
+                }
+                true
             }
-            true
-        } else {
-            false
+            Some(DisplayRow::CommentHeader {
+                is_pending: true,
+                pending_idx: Some(idx),
+                ..
+            }) => {
+                let id = *idx;
+                if self.expanded_pending.contains(&id) {
+                    self.expanded_pending.remove(&id);
+                } else {
+                    self.expanded_pending.insert(id);
+                }
+                true
+            }
+            _ => false,
         }
     }
 

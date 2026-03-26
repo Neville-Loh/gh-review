@@ -92,6 +92,8 @@ define_commands! {
     switch_focus,         "Switch focus: files / diff",    false;
     toggle_view,          "Toggle unified / side-by-side", true;
     toggle_comment,       "Toggle comment expand",         false;
+    expand_all_comments,  "Expand all comment threads",   true;
+    collapse_all_comments,"Collapse all comment threads", true;
     file_filter,          "Filter file list",              false;
     open_command_mode,    "Open command prompt",            false;
     pending_g,            "Start gg sequence",             false;
@@ -283,6 +285,34 @@ mod cmd {
         if app.diff_view.toggle_comment_expand() {
             app.rebuild_display();
         }
+    }
+
+    pub fn expand_all_comments(app: &mut App) {
+        use crate::diff::renderer::DisplayRow;
+        for row in &app.diff_view.display_rows {
+            if let DisplayRow::CommentHeader {
+                thread_root_id: Some(root_id),
+                ..
+            } = row
+            {
+                app.diff_view.expanded_threads.insert(*root_id);
+            }
+            if let DisplayRow::CommentHeader {
+                is_pending: true,
+                pending_idx: Some(idx),
+                ..
+            } = row
+            {
+                app.diff_view.expanded_pending.insert(*idx);
+            }
+        }
+        app.rebuild_display();
+    }
+
+    pub fn collapse_all_comments(app: &mut App) {
+        app.diff_view.expanded_threads.clear();
+        app.diff_view.expanded_pending.clear();
+        app.rebuild_display();
     }
 
     pub fn file_filter(app: &mut App) {
