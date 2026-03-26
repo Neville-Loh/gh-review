@@ -69,7 +69,7 @@ fn searchable_text_extracts_diff_line_content() {
 
 #[test]
 fn searchable_text_returns_none_for_comment_rows() {
-    let row = DisplayRow::CommentFooter { is_reply: false };
+    let row = DisplayRow::CommentFooter { is_reply: false, is_resolved: false };
     assert_eq!(searchable_text(&row), None);
 }
 
@@ -458,7 +458,7 @@ fn search_matches_hunk_headers() {
 fn search_skips_comment_footer() {
     let rows = vec![
         diff_row("real match"),
-        DisplayRow::CommentFooter { is_reply: false },
+        DisplayRow::CommentFooter { is_reply: false, is_resolved: false },
     ];
     let mut s = SearchState::new();
     s.apply("match", SearchDirection::Forward, &rows, 0);

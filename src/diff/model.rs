@@ -30,22 +30,24 @@ pub enum DisplayRow {
     CommentHeader {
         author: String,
         is_pending: bool,
-        comment_id: usize,
         github_id: Option<u64>,
         pending_idx: Option<usize>,
+        thread_root_id: Option<u64>,
         thread_node_id: Option<String>,
         is_resolved: bool,
         expanded: bool,
+        reply_count: usize,
         body_preview: String,
-        body_lines: usize,
         is_reply: bool,
     },
     CommentBodyLine {
         line: Line<'static>,
         is_reply: bool,
+        is_resolved: bool,
     },
     CommentFooter {
         is_reply: bool,
+        is_resolved: bool,
     },
     SuggestionDiff {
         original: String,
@@ -99,11 +101,11 @@ pub fn build_display_rows(
     files: &[DiffFile],
     existing_comments: &[ExistingComment],
     pending_comments: &[ReviewComment],
-    expanded_comments: &std::collections::HashSet<usize>,
+    expanded_threads: &std::collections::HashSet<u64>,
+    expanded_pending: &std::collections::HashSet<usize>,
     thread_map: &HashMap<u64, ThreadInfo>,
 ) -> Vec<DisplayRow> {
     let mut rows = Vec::new();
-    let mut comment_id_counter: usize = 0;
 
     for (file_idx, file) in files.iter().enumerate() {
         rows.push(DisplayRow::FileHeader {
@@ -131,79 +133,117 @@ pub fn build_display_rows(
                 };
 
                 if let Some(lineno) = target_line {
-                    for ec in existing_comments.iter().filter(|c| {
-                        c.path == file.path
-                            && c.line == Some(lineno)
-                            && matches!(
-                                (c.side.as_deref(), &target_side),
-                                (Some("LEFT"), Side::Left)
-                                    | (Some("RIGHT"), Side::Right)
-                                    | (None, _)
-                            )
-                    }) {
-                        let cid = comment_id_counter;
-                        comment_id_counter += 1;
-                        let is_expanded = expanded_comments.contains(&cid);
-                        let preview = ec.body.lines().next().unwrap_or("").to_string();
-                        let body_lines = ec.body.lines().count();
-                        let is_reply = ec.in_reply_to_id.is_some();
+                    let line_comments: Vec<&ExistingComment> = existing_comments
+                        .iter()
+                        .filter(|c| {
+                            c.path == file.path
+                                && c.line == Some(lineno)
+                                && matches!(
+                                    (c.side.as_deref(), &target_side),
+                                    (Some("LEFT"), Side::Left)
+                                        | (Some("RIGHT"), Side::Right)
+                                        | (None, _)
+                                )
+                        })
+                        .collect();
 
+                    let mut threads: std::collections::BTreeMap<u64, Vec<&ExistingComment>> =
+                        std::collections::BTreeMap::new();
+                    for ec in &line_comments {
                         let root_id = ec.in_reply_to_id.unwrap_or(ec.id);
-                        let thread_info = thread_map.get(&root_id);
+                        threads.entry(root_id).or_default().push(ec);
+                    }
+
+                    for (root_id, thread_comments) in &threads {
+                        let root = thread_comments[0];
+                        let reply_count = thread_comments.len().saturating_sub(1);
+                        let thread_info = thread_map.get(root_id);
                         let thread_node_id = thread_info.map(|t| t.thread_node_id.clone());
                         let is_resolved = thread_info.map(|t| t.is_resolved).unwrap_or(false);
+                        let is_expanded = expanded_threads.contains(root_id);
+                        let preview = root.body.lines().next().unwrap_or("").to_string();
 
                         rows.push(DisplayRow::CommentHeader {
-                            author: ec.user.login.clone(),
+                            author: root.user.login.clone(),
                             is_pending: false,
-                            comment_id: cid,
-                            github_id: Some(ec.id),
+                            github_id: Some(root.id),
                             pending_idx: None,
+                            thread_root_id: Some(*root_id),
                             thread_node_id,
                             is_resolved,
                             expanded: is_expanded,
+                            reply_count,
                             body_preview: preview,
-                            body_lines,
-                            is_reply,
+                            is_reply: false,
                         });
 
-                        if let Some(suggested) = extract_suggestion(&ec.body) {
+                        if let Some(suggested) = extract_suggestion(&root.body) {
                             rows.push(DisplayRow::SuggestionDiff {
                                 original: line.content.clone(),
                                 suggested,
-                                github_id: Some(ec.id),
+                                github_id: Some(root.id),
                             });
                         }
 
                         if is_expanded {
-                            let md_lines = render_markdown_to_lines(&ec.body);
+                            let md_lines = render_markdown_to_lines(&root.body);
                             for ml in md_lines {
-                                rows.push(DisplayRow::CommentBodyLine { line: ml, is_reply });
+                                rows.push(DisplayRow::CommentBodyLine {
+                                    line: ml,
+                                    is_reply: false,
+                                    is_resolved,
+                                });
                             }
-                            rows.push(DisplayRow::CommentFooter { is_reply });
+
+                            for reply in thread_comments.iter().skip(1) {
+                                rows.push(DisplayRow::CommentHeader {
+                                    author: reply.user.login.clone(),
+                                    is_pending: false,
+                                    github_id: Some(reply.id),
+                                    pending_idx: None,
+                                    thread_root_id: Some(*root_id),
+                                    thread_node_id: None,
+                                    is_resolved,
+                                    expanded: true,
+                                    reply_count: 0,
+                                    body_preview: String::new(),
+                                    is_reply: true,
+                                });
+
+                                let reply_lines = render_markdown_to_lines(&reply.body);
+                                for ml in reply_lines {
+                                    rows.push(DisplayRow::CommentBodyLine {
+                                        line: ml,
+                                        is_reply: true,
+                                        is_resolved,
+                                    });
+                                }
+                            }
+
+                            rows.push(DisplayRow::CommentFooter {
+                                is_reply: false,
+                                is_resolved,
+                            });
                         }
                     }
 
                     for (pc_idx, pc) in pending_comments.iter().enumerate().filter(|(_, c)| {
                         c.path == file.path && c.line == lineno && c.side == target_side
                     }) {
-                        let cid = comment_id_counter;
-                        comment_id_counter += 1;
-                        let is_expanded = expanded_comments.contains(&cid);
+                        let is_expanded = expanded_pending.contains(&pc_idx);
                         let preview = pc.body.lines().next().unwrap_or("").to_string();
-                        let body_lines = pc.body.lines().count();
 
                         rows.push(DisplayRow::CommentHeader {
                             author: String::new(),
                             is_pending: true,
-                            comment_id: cid,
                             github_id: None,
                             pending_idx: Some(pc_idx),
+                            thread_root_id: None,
                             thread_node_id: None,
                             is_resolved: false,
                             expanded: is_expanded,
+                            reply_count: 0,
                             body_preview: preview,
-                            body_lines,
                             is_reply: false,
                         });
 
@@ -213,9 +253,13 @@ pub fn build_display_rows(
                                 rows.push(DisplayRow::CommentBodyLine {
                                     line: ml,
                                     is_reply: false,
+                                    is_resolved: false,
                                 });
                             }
-                            rows.push(DisplayRow::CommentFooter { is_reply: false });
+                            rows.push(DisplayRow::CommentFooter {
+                                is_reply: false,
+                                is_resolved: false,
+                            });
                         }
                     }
                 }

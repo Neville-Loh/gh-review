@@ -171,6 +171,43 @@ impl Theme {
             .add_modifier(Modifier::DIM)
     }
 
+    // Comment thread backgrounds and accents
+    pub fn comment_bg() -> Color {
+        Color::Rgb(20, 22, 40)
+    }
+
+    pub fn comment_accent() -> Color {
+        Color::Rgb(80, 120, 220)
+    }
+
+    pub fn comment_fg() -> Color {
+        Color::Rgb(170, 190, 230)
+    }
+
+    pub fn resolved_bg() -> Color {
+        Color::Rgb(18, 25, 20)
+    }
+
+    pub fn resolved_accent() -> Color {
+        Color::Rgb(60, 120, 60)
+    }
+
+    pub fn resolved_fg() -> Color {
+        Color::Rgb(100, 130, 100)
+    }
+
+    pub fn pending_bg() -> Color {
+        Color::Rgb(35, 28, 15)
+    }
+
+    pub fn pending_accent() -> Color {
+        Color::Rgb(200, 150, 50)
+    }
+
+    pub fn pending_fg() -> Color {
+        Color::Rgb(200, 170, 100)
+    }
+
     pub fn suggestion_added() -> Style {
         Style::default()
             .fg(Color::Green)
