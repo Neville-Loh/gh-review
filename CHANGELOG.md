@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Reply to review comments** — post threaded replies to existing review comments inline (#15)
 - **Review submission with body** — `:comment`, `:approve_with_comment`, and `:request_changes_with_comment` open a textarea for a review body; quick actions (`a`, `r`, `s`) now show a compact Enter/Esc confirmation instead (#20)
 - **`V` for visual select** — capital V also enters visual line selection mode (#21)
+- **Expand/collapse all comments** — `:expand_all_comments` and `:collapse_all_comments` commands to bulk toggle every thread at once
 
 ### Fixed
 
@@ -34,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Architecture overhaul** — split monolithic `app.rs` (712 lines) into `app/mod.rs`, `app/handlers.rs`, `app/keymap.rs`, `app/command.rs`, and `app/ui.rs`; split `diff_view.rs` into `diff_view/mod.rs`, `diff_view/draw.rs`, and `diff_view/navigation.rs`; extracted `diff/model.rs` from renderer; split `search.rs` into `search/mod.rs` and `search/tests.rs` (+2504/−2358 lines) (#10)
 - **Command-driven keymap** — all keybindings now dispatch through a `Command` registry with named, documented, and discoverable actions instead of inline closures; enables future remappable keybindings (#16)
 - `c` on a diff line now opens an inline comment; `:comment` opens a review-level comment with body (#20)
+- **Comment thread rendering** — complete visual redesign of comment threads with box-drawing characters (┌─┐│└─┘), distinct color-coded backgrounds (blue for comments, green for resolved, amber for pending), word-wrapping within thread boxes, reply count badges, and responsive width that adapts to the terminal
 
 ## [0.1.1] - 2026-03-24
 
