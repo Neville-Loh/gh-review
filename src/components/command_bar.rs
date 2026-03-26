@@ -2,11 +2,13 @@ use ratatui::{
     buffer::Buffer,
     layout::Rect,
     text::{Line, Span},
-    widgets::{Paragraph, Widget},
+    widgets::{Block, Borders, Clear, Paragraph, Widget},
 };
 
 use crate::app::command::Command;
 use crate::theme::Theme;
+
+const MAX_COMPLETION_ROWS: u16 = 8;
 
 pub struct CommandBar {
     pub active: bool,
@@ -45,13 +47,16 @@ impl CommandBar {
         self.completion_idx = None;
     }
 
-    fn matching_commands(&self) -> Vec<&'static Command> {
-        if self.input.is_empty() {
-            return Command::typable_commands().collect();
-        }
-        Command::typable_commands()
-            .filter(|c| c.name.starts_with(&self.input))
-            .collect()
+    pub fn matching_commands(&self) -> Vec<&'static Command> {
+        let mut matches: Vec<_> = if self.input.is_empty() {
+            Command::typable_commands().collect()
+        } else {
+            Command::typable_commands()
+                .filter(|c| c.name.starts_with(&self.input))
+                .collect()
+        };
+        matches.sort_by(|a, b| a.name.len().cmp(&b.name.len()).then(a.name.cmp(b.name)));
+        matches
     }
 
     pub fn cycle_completion(&mut self) {
@@ -72,29 +77,76 @@ impl CommandBar {
         if trimmed.is_empty() {
             return None;
         }
-        // Exact match first
         if let Some(cmd) = Command::typable_commands().find(|c| c.name == trimmed) {
             return Some(cmd);
         }
-        // Unique prefix match
         let matches: Vec<_> = Command::typable_commands()
             .filter(|c| c.name.starts_with(trimmed))
             .collect();
         if matches.len() == 1 {
             return Some(matches[0]);
         }
-        // Alias: "q" -> "quit"
         if trimmed == "q" {
             return Command::by_name("quit");
         }
         None
     }
 
-    pub fn draw(&self, area: Rect, buf: &mut Buffer) {
+    pub fn completion_height(&self) -> u16 {
+        let matches = self.matching_commands();
+        (matches.len() as u16).min(MAX_COMPLETION_ROWS)
+    }
+
+    pub fn draw_completions(&self, area: Rect, buf: &mut Buffer) {
+        let matches = self.matching_commands();
+        if matches.is_empty() {
+            return;
+        }
+
+        Widget::render(Clear, area, buf);
+
+        let block = Block::default()
+            .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
+            .border_style(Theme::border());
+        let inner = block.inner(area);
+        Widget::render(block, area, buf);
+
+        let selected = self.completion_idx;
+        let visible: Vec<_> = matches
+            .iter()
+            .take(MAX_COMPLETION_ROWS as usize)
+            .enumerate()
+            .collect();
+        let lines: Vec<Line> = visible
+            .iter()
+            .rev()
+            .map(|(i, cmd)| {
+                let is_selected = selected == Some(*i);
+                let name_style = if is_selected {
+                    Theme::file_list_selected()
+                } else {
+                    Theme::review_bar_key()
+                };
+                let doc_style = if is_selected {
+                    Theme::file_list_selected()
+                } else {
+                    Theme::help_desc()
+                };
+                Line::from(vec![
+                    Span::styled(format!(" {:<20}", cmd.name), name_style),
+                    Span::styled(cmd.doc, doc_style),
+                ])
+            })
+            .collect();
+
+        let paragraph = Paragraph::new(lines);
+        Widget::render(paragraph, inner, buf);
+    }
+
+    pub fn draw_input(&self, area: Rect, buf: &mut Buffer) {
         let matches = self.matching_commands();
         let hint = if matches.len() == 1 && !self.input.is_empty() {
-            let rest = &matches[0].name[self.input.len()..];
-            rest.to_string()
+            matches[0].name[self.input.len()..].to_string()
         } else {
             String::new()
         };
@@ -110,18 +162,8 @@ impl CommandBar {
 
         spans.push(Span::styled("█", Theme::search_prompt()));
 
-        if !self.input.is_empty() {
-            if matches.is_empty() {
-                spans.push(Span::styled("  [unknown command]", Theme::error()));
-            } else if matches.len() > 1 {
-                let names: Vec<&str> = matches.iter().take(5).map(|c| c.name).collect();
-                let hint_str = if matches.len() > 5 {
-                    format!("  [{}... +{}]", names.join(", "), matches.len() - 5)
-                } else {
-                    format!("  [{}]", names.join(", "))
-                };
-                spans.push(Span::styled(hint_str, Theme::search_count()));
-            }
+        if !self.input.is_empty() && matches.is_empty() {
+            spans.push(Span::styled("  [unknown command]", Theme::error()));
         }
 
         let line = Line::from(spans);
