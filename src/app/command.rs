@@ -97,17 +97,22 @@ define_commands! {
     pending_g,            "Start gg sequence",             false;
     pending_z,            "Start zz/zt/zb sequence",       false;
 
-    // Review
-    comment,              "Comment on current line",       true;
+    // Review -- typable
+    comment,              "Review comment with body",      true;
     suggest,              "Suggest change on current line", true;
     expand,               "Expand context",                true;
-    approve,              "Submit review: approve",        true;
-    request_changes,      "Submit review: request changes", true;
-    submit,               "Submit review: comment only",   true;
+    approve,              "Approve (quick confirm)",       true;
+    approve_with_comment, "Approve with review body",     true;
+    request_changes,      "Request changes (quick)",      true;
+    request_changes_with_comment, "Request changes with body", true;
+    submit,               "Submit comment-only (quick)",  true;
     unapprove,            "Dismiss own approval",          true;
     discard,              "Discard pending comment",       true;
     resolve,              "Resolve / unresolve thread",    true;
     accept_suggestion,    "Accept suggestion",             true;
+
+    // Review -- keybinding only
+    comment_on_line,      "Comment on current line",       false;
     visual,               "Visual select mode",            false;
 
     // File picker
@@ -297,24 +302,8 @@ mod cmd {
     }
 
     pub fn comment(app: &mut App) {
-        if app.diff_view.is_visual_mode() {
-            app.start_visual_comment();
-        } else if let Some(pt) = app.diff_view.pending_comment_at_cursor() {
-            if let Some(pc) = app.pending_comments.get(pt.pending_idx) {
-                app.comment_input.open_edit(
-                    pt.pending_idx,
-                    pc.path.clone(),
-                    pc.line,
-                    pc.side,
-                    &pc.body,
-                );
-            }
-        } else if let Some(target) = app.diff_view.comment_reply_target() {
-            app.comment_input
-                .open_reply(target.github_id, target.author);
-        } else {
-            app.start_comment();
-        }
+        app.review_confirm
+            .show_with_body(ReviewEvent::Comment, app.pending_comments.len(), true);
     }
 
     pub fn suggest(app: &mut App) {
@@ -355,9 +344,19 @@ mod cmd {
             .show(ReviewEvent::Approve, app.pending_comments.len());
     }
 
+    pub fn approve_with_comment(app: &mut App) {
+        app.review_confirm
+            .show_with_body(ReviewEvent::Approve, app.pending_comments.len(), true);
+    }
+
     pub fn request_changes(app: &mut App) {
         app.review_confirm
             .show(ReviewEvent::RequestChanges, app.pending_comments.len());
+    }
+
+    pub fn request_changes_with_comment(app: &mut App) {
+        app.review_confirm
+            .show_with_body(ReviewEvent::RequestChanges, app.pending_comments.len(), true);
     }
 
     pub fn submit(app: &mut App) {
@@ -366,7 +365,8 @@ mod cmd {
     }
 
     pub fn unapprove(app: &mut App) {
-        app.review_confirm.show(ReviewEvent::Unapprove, 0);
+        app.review_confirm
+            .show_with_body(ReviewEvent::Unapprove, 0, true);
     }
 
     pub fn discard(app: &mut App) {
@@ -387,6 +387,27 @@ mod cmd {
     pub fn accept_suggestion(app: &mut App) {
         if let Some(target) = app.diff_view.suggestion_at_cursor() {
             app.accept_suggestion(target);
+        }
+    }
+
+    pub fn comment_on_line(app: &mut App) {
+        if app.diff_view.is_visual_mode() {
+            app.start_visual_comment();
+        } else if let Some(pt) = app.diff_view.pending_comment_at_cursor() {
+            if let Some(pc) = app.pending_comments.get(pt.pending_idx) {
+                app.comment_input.open_edit(
+                    pt.pending_idx,
+                    pc.path.clone(),
+                    pc.line,
+                    pc.side,
+                    &pc.body,
+                );
+            }
+        } else if let Some(target) = app.diff_view.comment_reply_target() {
+            app.comment_input
+                .open_reply(target.github_id, target.author);
+        } else {
+            app.start_comment();
         }
     }
 

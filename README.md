@@ -108,24 +108,48 @@ In the file picker, `/` opens a fuzzy file filter instead.
 
 | Key | Action |
 |-----|--------|
-| `c` | Comment on current line (or edit pending comment) |
+| `c` | Comment on current line (or edit pending / reply) |
 | `v` | Visual select mode for multi-line comments |
 | `x` | Discard pending comment at cursor |
-| `Ctrl+S` | Save comment / confirm review submission |
+| `Ctrl+S` | Save comment / confirm review (in textarea modals) |
 | `Esc` | Cancel comment / cancel visual selection |
-| `a` | Submit review — approve (with optional body) |
-| `r` | Submit review — request changes (with optional body) |
-| `s` | Submit review — comment only (with optional body) |
+| `a` | Approve (quick confirm) |
+| `r` | Request changes (quick confirm) |
+| `s` | Submit review as comment-only (quick confirm) |
 | `u` | Unapprove — dismiss your own approval |
 | `R` | Resolve / unresolve comment thread |
 | `y` | Accept suggestion (apply as commit) |
 
-Comments are batched into a pending review and submitted together when you press `a`, `r`, or `s`. The review submission popup includes a textarea for an optional review body. This matches GitHub's review model.
+Comments are batched into a pending review and submitted together when you press `a`, `r`, or `s`. These open a quick confirm popup (Enter / Esc). For review submissions with a body message, use the `:` command mode (see below).
+
+### Command Mode
+
+Press `:` to open the command prompt. Type a command name and press Enter to execute. Tab cycles through completions.
+
+| Command | Action |
+|---------|--------|
+| `:approve` | Approve (quick confirm) |
+| `:approve_with_comment` | Approve with review body |
+| `:request_changes` | Request changes (quick confirm) |
+| `:request_changes_with_comment` | Request changes with body |
+| `:submit` | Submit comment-only (quick confirm) |
+| `:comment` | Review comment with body |
+| `:unapprove` | Dismiss own approval |
+| `:suggest` | Suggest change on current line |
+| `:expand` | Expand context |
+| `:discard` | Discard pending comment |
+| `:resolve` | Resolve / unresolve thread |
+| `:accept_suggestion` | Accept suggestion |
+| `:toggle_view` | Toggle unified / side-by-side |
+| `:help` | Toggle help overlay |
+| `:quit` (or `:q`) | Quit |
+| `:open_browser` | Open PR in browser |
 
 ### Other
 
 | Key | Action |
 |-----|--------|
+| `:` | Open command prompt |
 | `o` | Open PR in browser |
 | `!` | Show help overlay |
 | `q` | Quit |
@@ -136,14 +160,15 @@ Comments are batched into a pending review and submitted together when you press
 src/
   main.rs                  CLI entry point (clap), terminal setup
   event.rs                 Async event channel (crossterm + tokio)
-  gh.rs                    GitHub API via gh CLI subprocess
+  gh.rs                    GitHub API via gh CLI subprocess (REST + GraphQL)
   types.rs                 Domain types (DiffFile, Hunk, ReviewComment, etc.)
   theme.rs                 Colors and styles
   highlight.rs             Syntax highlighting (arborium)
   app/
     mod.rs                 App struct, state, event dispatch, data loading
-    actions.rs             Action enum and key-to-action mapping
-    handlers.rs            Action execution, modal key handlers, async commands
+    command.rs             Command struct, registry macro, handler functions
+    keymap.rs              Configurable key-to-command mapping (HashMap)
+    handlers.rs            Modal key handlers, async commands
     ui.rs                  Layout and drawing
   diff/
     model.rs               DisplayRow types and display row builder
@@ -160,13 +185,14 @@ src/
       draw.rs              Unified and side-by-side rendering
     file_picker.rs         File list sidebar with fuzzy filter
     comment_input.rs       Inline comment textarea popup
+    command_bar.rs         Command mode prompt with tab completion
     search_bar.rs          Search prompt with match count display
     review_bar.rs          Bottom status bar
     review_confirm.rs      Review submission confirmation popup
     help.rs                Keybinding help overlay
 ```
 
-Key handling uses an **Action dispatch pattern**: keys are mapped to an `Action` enum via a pure function (`key_to_action`), then executed separately (`execute_action`). Modal states (search bar, comment input, review confirm, file filter, help) each have dedicated handlers.
+Key handling follows the **Helix command pattern**: each action is a `Command` struct with name, doc, and handler fn pointer, registered via a `define_commands!` macro. A `Keymap` maps key combos to commands via `HashMap`. The `:` command mode looks up commands by name from the same registry. Modal states (search bar, comment input, review confirm, command bar, file filter, help) each have dedicated handlers.
 
 All GitHub API calls go through the `gh` CLI, reusing your existing authentication. No tokens or OAuth configuration needed.
 
