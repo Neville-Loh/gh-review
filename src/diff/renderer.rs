@@ -107,8 +107,10 @@ pub fn render_unified_row(
                 }
             }
         }
-        DisplayRow::CommentBodyLine { line, is_reply, is_resolved } => {
-            let (bg, border_color) = if *is_resolved {
+        DisplayRow::CommentBodyLine { line, is_reply, is_resolved, is_pending } => {
+            let (bg, border_color) = if *is_pending {
+                (Theme::pending_bg(), Theme::pending_accent())
+            } else if *is_resolved {
                 (Theme::resolved_bg(), Theme::resolved_accent())
             } else {
                 (Theme::comment_bg(), Theme::comment_accent())
@@ -133,8 +135,10 @@ pub fn render_unified_row(
             spans.push(Span::styled("│", bs));
             Line::from(spans).style(Style::default().bg(bg))
         }
-        DisplayRow::CommentFooter { is_resolved, .. } => {
-            let (bg, border_color) = if *is_resolved {
+        DisplayRow::CommentFooter { is_resolved, is_pending, .. } => {
+            let (bg, border_color) = if *is_pending {
+                (Theme::pending_bg(), Theme::pending_accent())
+            } else if *is_resolved {
                 (Theme::resolved_bg(), Theme::resolved_accent())
             } else {
                 (Theme::comment_bg(), Theme::comment_accent())

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use ratatui::text::{Line, Span};
+use unicode_width::UnicodeWidthStr;
 
 use crate::types::{DiffFile, DiffLine, ExistingComment, LineKind, ReviewComment, Side, ThreadInfo};
 
@@ -44,10 +45,12 @@ pub enum DisplayRow {
         line: Line<'static>,
         is_reply: bool,
         is_resolved: bool,
+        is_pending: bool,
     },
     CommentFooter {
         is_reply: bool,
         is_resolved: bool,
+        is_pending: bool,
     },
     SuggestionDiff {
         original: String,
@@ -97,6 +100,66 @@ fn render_markdown_to_lines(body: &str) -> Vec<Line<'static>> {
         .collect()
 }
 
+const LINE_NUM_WIDTH: usize = 5;
+const GUTTER_WIDTH: usize = LINE_NUM_WIDTH * 2 + 3;
+
+fn wrap_line(text: &str, max_width: usize) -> Vec<String> {
+    if max_width == 0 {
+        return vec![text.to_string()];
+    }
+    let mut lines = Vec::new();
+    let mut current = String::new();
+    let mut current_w = 0;
+    for word in text.split_inclusive(' ') {
+        let ww = word.width();
+        if current_w + ww > max_width && !current.is_empty() {
+            lines.push(current);
+            current = String::new();
+            current_w = 0;
+        }
+        current.push_str(word);
+        current_w += ww;
+    }
+    if !current.is_empty() {
+        lines.push(current);
+    }
+    if lines.is_empty() {
+        lines.push(String::new());
+    }
+    lines
+}
+
+fn wrap_body_lines(
+    md_lines: Vec<Line<'static>>,
+    max_width: usize,
+    is_reply: bool,
+    is_resolved: bool,
+    is_pending: bool,
+) -> Vec<DisplayRow> {
+    let mut rows = Vec::new();
+    for ml in md_lines {
+        let text: String = ml.spans.iter().map(|s| s.content.as_ref()).collect();
+        if text.width() <= max_width {
+            rows.push(DisplayRow::CommentBodyLine {
+                line: ml,
+                is_reply,
+                is_resolved,
+                is_pending,
+            });
+        } else {
+            for wrapped in wrap_line(&text, max_width) {
+                rows.push(DisplayRow::CommentBodyLine {
+                    line: Line::from(wrapped),
+                    is_reply,
+                    is_resolved,
+                    is_pending,
+                });
+            }
+        }
+    }
+    rows
+}
+
 pub fn build_display_rows(
     files: &[DiffFile],
     existing_comments: &[ExistingComment],
@@ -104,8 +167,10 @@ pub fn build_display_rows(
     expanded_threads: &std::collections::HashSet<u64>,
     expanded_pending: &std::collections::HashSet<usize>,
     thread_map: &HashMap<u64, ThreadInfo>,
+    wrap_width: usize,
 ) -> Vec<DisplayRow> {
     let mut rows = Vec::new();
+    let body_max_width = wrap_width.saturating_sub(GUTTER_WIDTH + 4);
 
     for (file_idx, file) in files.iter().enumerate() {
         rows.push(DisplayRow::FileHeader {
@@ -187,13 +252,7 @@ pub fn build_display_rows(
 
                         if is_expanded {
                             let md_lines = render_markdown_to_lines(&root.body);
-                            for ml in md_lines {
-                                rows.push(DisplayRow::CommentBodyLine {
-                                    line: ml,
-                                    is_reply: false,
-                                    is_resolved,
-                                });
-                            }
+                            rows.extend(wrap_body_lines(md_lines, body_max_width, false, is_resolved, false));
 
                             for reply in thread_comments.iter().skip(1) {
                                 rows.push(DisplayRow::CommentHeader {
@@ -211,18 +270,13 @@ pub fn build_display_rows(
                                 });
 
                                 let reply_lines = render_markdown_to_lines(&reply.body);
-                                for ml in reply_lines {
-                                    rows.push(DisplayRow::CommentBodyLine {
-                                        line: ml,
-                                        is_reply: true,
-                                        is_resolved,
-                                    });
-                                }
+                                rows.extend(wrap_body_lines(reply_lines, body_max_width, true, is_resolved, false));
                             }
 
                             rows.push(DisplayRow::CommentFooter {
                                 is_reply: false,
                                 is_resolved,
+                                is_pending: false,
                             });
                         }
                     }
@@ -249,16 +303,11 @@ pub fn build_display_rows(
 
                         if is_expanded {
                             let md_lines = render_markdown_to_lines(&pc.body);
-                            for ml in md_lines {
-                                rows.push(DisplayRow::CommentBodyLine {
-                                    line: ml,
-                                    is_reply: false,
-                                    is_resolved: false,
-                                });
-                            }
+                            rows.extend(wrap_body_lines(md_lines, body_max_width, false, false, true));
                             rows.push(DisplayRow::CommentFooter {
                                 is_reply: false,
                                 is_resolved: false,
+                                is_pending: true,
                             });
                         }
                     }

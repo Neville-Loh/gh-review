@@ -15,6 +15,7 @@ pub struct DiffView {
     pub(crate) files: Vec<DiffFile>,
     pub(crate) expanded_threads: HashSet<u64>,
     pub(crate) expanded_pending: HashSet<usize>,
+    pub(crate) wrap_width: usize,
     pub visual_anchor: Option<usize>,
 }
 
@@ -29,6 +30,7 @@ impl DiffView {
             files: Vec::new(),
             expanded_threads: HashSet::new(),
             expanded_pending: HashSet::new(),
+            wrap_width: 120,
             visual_anchor: None,
         }
     }
@@ -48,6 +50,7 @@ impl DiffView {
             &self.expanded_threads,
             &self.expanded_pending,
             thread_map,
+            self.wrap_width,
         );
         self.search.recompute(&self.display_rows);
     }
