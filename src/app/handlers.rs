@@ -1,14 +1,11 @@
-use crossterm::event::KeyCode;
+use crossterm::event::{KeyCode, KeyModifiers};
 use tui_textarea::Input;
 
 use crate::components::comment_input::CommentAction;
 use crate::event::AppEvent;
-use crate::search::SearchDirection;
 use crate::types::{ReviewComment, ReviewEvent};
 
 use super::App;
-use super::Focus;
-use super::actions::{Action, key_to_action, pending_key_to_action};
 
 impl App {
     pub(super) fn handle_key(&mut self, key: crossterm::event::KeyEvent) {
@@ -38,209 +35,20 @@ impl App {
         }
 
         if let Some(pending) = self.pending_key.take() {
-            if let Some(action) = pending_key_to_action(pending, key.code) {
-                self.execute_action(action);
+            if let Some(cmd) = self.keymap.lookup_pending(pending, key.code) {
+                (cmd.execute)(self);
             }
             return;
         }
 
-        if let Some(action) = key_to_action(key, self.focus, self.visible_height) {
-            self.execute_action(action);
-        }
-    }
-
-    fn execute_action(&mut self, action: Action) {
-        match action {
-            Action::Quit => self.should_quit = true,
-            Action::ClearSearchOrQuit => {
-                if self.diff_view.is_visual_mode() {
-                    self.diff_view.cancel_visual();
-                } else if self.diff_view.search.is_active() {
-                    self.diff_view.search.clear();
-                    self.status_msg.clear();
-                } else {
-                    self.should_quit = true;
-                }
-            }
-            Action::ToggleHelp => self.show_help = !self.show_help,
-            Action::OpenSearchForward => {
-                self.diff_view.search.set_anchor(self.diff_view.cursor);
-                self.search_bar.open(SearchDirection::Forward);
-            }
-            Action::OpenSearchBackward => {
-                self.diff_view.search.set_anchor(self.diff_view.cursor);
-                self.search_bar.open(SearchDirection::Backward);
-            }
-            Action::StartFileFilter => self.file_picker.start_filter(),
-            Action::SwitchFocus => {
-                self.focus = match self.focus {
-                    Focus::FilePicker => Focus::DiffView,
-                    Focus::DiffView => Focus::FilePicker,
-                };
-            }
-            Action::ScrollDown(n) => self.diff_view.scroll_down(n),
-            Action::ScrollUp(n) => self.diff_view.scroll_up(n),
-            Action::PageDown(n) => self.diff_view.page_down(n),
-            Action::PageUp(n) => self.diff_view.page_up(n),
-            Action::GotoFirst => self.diff_view.goto_first(),
-            Action::GotoLast => self.diff_view.goto_last(),
-            Action::ScreenTop => self.diff_view.screen_top(),
-            Action::ScreenMiddle => self.diff_view.screen_middle(self.visible_height),
-            Action::ScreenBottom => self.diff_view.screen_bottom(self.visible_height),
-            Action::CenterCursor => self.diff_view.center_cursor(self.visible_height),
-            Action::ScrollCursorToTop => {
-                self.diff_view.scroll_offset = self.diff_view.cursor;
-            }
-            Action::ScrollCursorToBottom => {
-                self.diff_view.scroll_offset = self
-                    .diff_view
-                    .cursor
-                    .saturating_sub(self.visible_height.saturating_sub(1));
-            }
-            Action::NextHunk => self.diff_view.next_hunk(),
-            Action::PrevHunk => self.diff_view.prev_hunk(),
-            Action::NextChange => self.diff_view.next_change(),
-            Action::PrevChange => self.diff_view.prev_change(),
-            Action::NextFileOrSearchHit(search_dir) => {
-                if self.diff_view.search.is_active() {
-                    let new_cursor = match search_dir {
-                        SearchDirection::Forward => self.diff_view.search.next_match(),
-                        SearchDirection::Backward => self.diff_view.search.prev_match(),
-                    };
-                    if let Some(c) = new_cursor {
-                        self.diff_view.cursor = c;
-                    }
-                    self.update_search_status();
-                } else {
-                    self.diff_view.next_file();
-                }
-                if let Some(fi) = self.diff_view.current_file_idx() {
-                    self.file_picker.selected = fi;
-                }
-            }
-            Action::PrevFileOrSearchHit(search_dir) => {
-                if self.diff_view.search.is_active() {
-                    let new_cursor = match search_dir {
-                        SearchDirection::Forward => self.diff_view.search.prev_match(),
-                        SearchDirection::Backward => self.diff_view.search.next_match(),
-                    };
-                    if let Some(c) = new_cursor {
-                        self.diff_view.cursor = c;
-                    }
-                    self.update_search_status();
-                } else {
-                    self.diff_view.prev_file();
-                }
-                if let Some(fi) = self.diff_view.current_file_idx() {
-                    self.file_picker.selected = fi;
-                }
-            }
-            Action::ToggleCommentExpand => {
-                if self.diff_view.toggle_comment_expand() {
-                    self.rebuild_display();
-                }
-            }
-            Action::ToggleDiffMode => self.diff_view.toggle_mode(),
-            Action::StartComment => {
-                if self.diff_view.is_visual_mode() {
-                    self.start_visual_comment();
-                } else if let Some(pt) = self.diff_view.pending_comment_at_cursor() {
-                    if let Some(pc) = self.pending_comments.get(pt.pending_idx) {
-                        self.comment_input.open_edit(
-                            pt.pending_idx,
-                            pc.path.clone(),
-                            pc.line,
-                            pc.side,
-                            &pc.body,
-                        );
-                    }
-                } else if let Some(target) = self.diff_view.comment_reply_target() {
-                    self.comment_input
-                        .open_reply(target.github_id, target.author);
-                } else {
-                    self.start_comment();
-                }
-            }
-            Action::DiscardPendingComment => {
-                if let Some(pt) = self.diff_view.pending_comment_at_cursor() {
-                    if pt.pending_idx < self.pending_comments.len() {
-                        self.pending_comments.remove(pt.pending_idx);
-                        self.rebuild_display();
-                    }
-                }
-            }
-            Action::StartSuggestion => {
-                if self.diff_view.is_visual_mode() {
-                    if let Some(content) = self.diff_view.visual_selection_content()
-                        && let Some((start, end)) = self.diff_view.visual_selection_targets()
-                        && let Some(file) = self.files.get(start.file_idx)
-                    {
-                        self.comment_input.open_suggestion_range(
-                            file.path.clone(),
-                            start.line,
-                            start.side,
-                            end.line,
-                            end.side,
-                            &content,
-                        );
-                    }
-                    self.diff_view.cancel_visual();
-                } else if let Some(content) = self.diff_view.current_line_content()
-                    && let Some(target) = self.diff_view.current_line_info()
-                    && let Some(file) = self.files.get(target.file_idx)
-                {
-                    self.comment_input.open_suggestion(
-                        file.path.clone(),
-                        target.line,
-                        target.side,
-                        &content,
-                    );
-                }
-            }
-            Action::ExpandContext => {
-                self.request_expand();
-            }
-            Action::ShowReviewConfirm(event) => {
-                self.review_confirm
-                    .show(event, self.pending_comments.len());
-            }
-            Action::ToggleResolveThread => {
-                if let Some(target) = self.diff_view.thread_resolve_target() {
-                    self.toggle_resolve_thread(target.thread_node_id, target.is_resolved);
-                }
-            }
-            Action::AcceptSuggestion => {
-                if let Some(target) = self.diff_view.suggestion_at_cursor() {
-                    self.accept_suggestion(target);
-                }
-            }
-            Action::Unapprove => {
-                self.review_confirm.show(ReviewEvent::Unapprove, 0);
-            }
-            Action::StartVisualSelect => {
-                if self.diff_view.is_visual_mode() {
-                    self.diff_view.cancel_visual();
-                } else {
-                    self.diff_view.start_visual();
-                }
-            }
-            Action::OpenInBrowser => self.open_in_browser(),
-            Action::PendingKey(c) => self.pending_key = Some(c),
-            Action::FilePickerDown => {
-                self.file_picker.next();
-                self.diff_view.goto_file(self.file_picker.selected);
-            }
-            Action::FilePickerUp => {
-                self.file_picker.prev();
-                self.diff_view.goto_file(self.file_picker.selected);
-            }
+        if let Some(cmd) = self.keymap.lookup(&key, self.focus) {
+            (cmd.execute)(self);
         }
     }
 
     // --- Modal key handlers ---
 
     fn handle_review_confirm_key(&mut self, key: crossterm::event::KeyEvent) {
-        use crossterm::event::KeyModifiers;
         let is_submit = matches!(key.code,
             KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL)
         );
@@ -295,7 +103,7 @@ impl App {
         }
     }
 
-    fn update_search_status(&mut self) {
+    pub(crate) fn update_search_status(&mut self) {
         let (curr, total) = self.diff_view.search.match_info();
         if total > 0 {
             self.status_msg = format!("/{} [{}/{}]", self.search_bar.input, curr + 1, total);
@@ -377,24 +185,24 @@ impl App {
         }
     }
 
-    // --- Async command handlers ---
+    // --- Async command helpers ---
 
-    pub(super) fn start_visual_comment(&mut self) {
-        if let Some((start, end)) = self.diff_view.visual_selection_targets() {
-            if let Some(file) = self.files.get(start.file_idx) {
-                self.comment_input.open_range(
-                    file.path.clone(),
-                    start.line,
-                    start.side,
-                    end.line,
-                    end.side,
-                );
-            }
+    pub(crate) fn start_visual_comment(&mut self) {
+        if let Some((start, end)) = self.diff_view.visual_selection_targets()
+            && let Some(file) = self.files.get(start.file_idx)
+        {
+            self.comment_input.open_range(
+                file.path.clone(),
+                start.line,
+                start.side,
+                end.line,
+                end.side,
+            );
         }
         self.diff_view.cancel_visual();
     }
 
-    pub(super) fn start_comment(&mut self) {
+    pub(crate) fn start_comment(&mut self) {
         if let Some(target) = self.diff_view.current_line_info()
             && let Some(file) = self.files.get(target.file_idx)
         {
@@ -403,7 +211,7 @@ impl App {
         }
     }
 
-    pub(super) fn request_expand(&mut self) {
+    pub(crate) fn request_expand(&mut self) {
         if let Some((file_idx, _hunk_idx)) = self.diff_view.current_hunk_idx()
             && let Some(file) = self.files.get(file_idx)
             && let Some(ref meta) = self.pr_meta
@@ -458,7 +266,7 @@ impl App {
         self.rebuild_display();
     }
 
-    pub(super) fn submit_review(&mut self, event: ReviewEvent, body: String) {
+    pub(crate) fn submit_review(&mut self, event: ReviewEvent, body: String) {
         let tx = self.tx.clone();
         let repo = self.repo.clone();
         let pr = self.pr_number;
@@ -478,7 +286,7 @@ impl App {
         });
     }
 
-    pub(super) fn submit_reply(&mut self, comment_id: u64, body: String) {
+    pub(crate) fn submit_reply(&mut self, comment_id: u64, body: String) {
         let tx = self.tx.clone();
         let repo = self.repo.clone();
         let pr = self.pr_number;
@@ -501,9 +309,13 @@ impl App {
         });
     }
 
-    pub(super) fn toggle_resolve_thread(&mut self, thread_node_id: String, is_resolved: bool) {
+    pub(crate) fn toggle_resolve_thread(&mut self, thread_node_id: String, is_resolved: bool) {
         let tx = self.tx.clone();
-        let action = if is_resolved { "Unresolving" } else { "Resolving" };
+        let action = if is_resolved {
+            "Unresolving"
+        } else {
+            "Resolving"
+        };
         self.status_msg = format!("{action} thread...");
         self.status_is_error = false;
 
@@ -524,12 +336,14 @@ impl App {
         });
     }
 
-    pub(super) fn accept_suggestion(
+    pub(crate) fn accept_suggestion(
         &mut self,
         target: crate::components::diff_view::SuggestionTarget,
     ) {
         let Some(ref meta) = self.pr_meta else { return };
-        let Some(file) = self.files.get(target.file_idx) else { return };
+        let Some(file) = self.files.get(target.file_idx) else {
+            return;
+        };
 
         let tx = self.tx.clone();
         let repo = self.repo.clone();
@@ -556,7 +370,7 @@ impl App {
         });
     }
 
-    pub(super) fn unapprove(&mut self, body: String) {
+    pub(crate) fn unapprove(&mut self, body: String) {
         let tx = self.tx.clone();
         let repo = self.repo.clone();
         let pr = self.pr_number;
@@ -583,11 +397,14 @@ impl App {
                                 let _ = tx.send(AppEvent::ReviewDismissed);
                             }
                             Err(e) => {
-                                let _ = tx.send(AppEvent::Error(format!("Dismiss failed: {e}")));
+                                let _ =
+                                    tx.send(AppEvent::Error(format!("Dismiss failed: {e}")));
                             }
                         }
                     } else {
-                        let _ = tx.send(AppEvent::Error("No approval found to dismiss".to_string()));
+                        let _ = tx.send(AppEvent::Error(
+                            "No approval found to dismiss".to_string(),
+                        ));
                     }
                 }
                 Err(e) => {
@@ -597,7 +414,7 @@ impl App {
         });
     }
 
-    pub(super) fn open_in_browser(&mut self) {
+    pub(crate) fn open_in_browser(&mut self) {
         let url = format!("https://github.com/{}/pull/{}", self.repo, self.pr_number);
         if let Err(e) = open::that(&url) {
             self.status_msg = format!("Failed to open browser: {e}");

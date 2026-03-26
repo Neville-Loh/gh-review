@@ -78,15 +78,15 @@ impl DiffView {
                 let selected = global_idx == self.cursor;
                 let mut line = render_unified_row(row, &self.files, area.width, selected);
                 line = self.search.highlight(line, global_idx);
-                if let Some((lo, hi)) = visual {
-                    if global_idx >= lo && global_idx <= hi && !selected {
-                        line = Line::from(
-                            line.spans
-                                .into_iter()
-                                .map(|s| Span::styled(s.content, s.style.patch(Theme::visual_select())))
-                                .collect::<Vec<_>>(),
-                        );
-                    }
+                if let Some((lo, hi)) = visual
+                    && global_idx >= lo && global_idx <= hi && !selected
+                {
+                    line = Line::from(
+                        line.spans
+                            .into_iter()
+                            .map(|s| Span::styled(s.content, s.style.patch(Theme::visual_select())))
+                            .collect::<Vec<_>>(),
+                    );
                 }
                 line
             })

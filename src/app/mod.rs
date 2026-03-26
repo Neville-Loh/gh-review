@@ -1,5 +1,6 @@
-mod actions;
+pub(crate) mod command;
 mod handlers;
+mod keymap;
 mod ui;
 
 use tokio::sync::mpsc;
@@ -24,28 +25,29 @@ pub struct App {
     pub repo: String,
     pub pr_number: u64,
 
-    pr_meta: Option<PrMetadata>,
-    files: Vec<DiffFile>,
-    existing_comments: Vec<ExistingComment>,
-    pending_comments: Vec<ReviewComment>,
-    thread_map: HashMap<u64, ThreadInfo>,
+    pub(crate) pr_meta: Option<PrMetadata>,
+    pub(crate) files: Vec<DiffFile>,
+    pub(crate) existing_comments: Vec<ExistingComment>,
+    pub(crate) pending_comments: Vec<ReviewComment>,
+    pub(crate) thread_map: HashMap<u64, ThreadInfo>,
 
-    file_picker: FilePicker,
-    diff_view: DiffView,
-    comment_input: CommentInput,
-    review_confirm: ReviewConfirm,
-    search_bar: SearchBar,
+    pub(crate) file_picker: FilePicker,
+    pub(crate) diff_view: DiffView,
+    pub(crate) comment_input: CommentInput,
+    pub(crate) review_confirm: ReviewConfirm,
+    pub(crate) search_bar: SearchBar,
 
-    focus: Focus,
-    show_help: bool,
-    status_msg: String,
-    status_is_error: bool,
-    loading: bool,
-    should_quit: bool,
-    pending_key: Option<char>,
-    visible_height: usize,
+    pub(crate) focus: Focus,
+    pub(crate) show_help: bool,
+    pub(crate) status_msg: String,
+    pub(crate) status_is_error: bool,
+    pub(crate) loading: bool,
+    pub(crate) should_quit: bool,
+    pub(crate) pending_key: Option<char>,
+    pub(crate) visible_height: usize,
 
-    tx: mpsc::UnboundedSender<AppEvent>,
+    pub(crate) keymap: keymap::Keymap,
+    pub(crate) tx: mpsc::UnboundedSender<AppEvent>,
 }
 
 impl App {
@@ -71,6 +73,7 @@ impl App {
             should_quit: false,
             pending_key: None,
             visible_height: 40,
+            keymap: keymap::Keymap::default(),
             tx,
         }
     }
@@ -193,7 +196,7 @@ impl App {
         }
     }
 
-    fn rebuild_display(&mut self) {
+    pub(crate) fn rebuild_display(&mut self) {
         self.diff_view.rebuild_rows(
             &self.files,
             &self.existing_comments,

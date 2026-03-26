@@ -179,6 +179,7 @@ pub struct ThreadInfo {
 }
 
 #[derive(Debug, Deserialize)]
+#[allow(dead_code)]
 pub struct PrReview {
     pub id: u64,
     pub user: PrUser,
