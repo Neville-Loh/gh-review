@@ -16,11 +16,50 @@ async fn run_gh(args: &[&str]) -> Result<String> {
         .context("Failed to run gh CLI — is it installed?")?;
 
     if !output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("gh {} failed: {}", args.join(" "), stderr.trim());
+        bail!("{}", format_api_error(&stdout, &stderr));
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+fn try_extract_json_error(text: &str) -> Option<String> {
+    let v: serde_json::Value = serde_json::from_str(text).ok()?;
+    let main_msg = v["message"].as_str().unwrap_or("");
+    let detail = v["errors"].as_array().and_then(|arr| {
+        arr.first().and_then(|e| {
+            e.as_str()
+                .map(String::from)
+                .or_else(|| e["message"].as_str().map(String::from))
+        })
+    });
+    if let Some(detail) = detail {
+        return Some(detail);
+    }
+    if !main_msg.is_empty() {
+        return Some(main_msg.to_string());
+    }
+    None
+}
+
+fn format_api_error(stdout: &str, stderr: &str) -> String {
+    if let Some(msg) = try_extract_json_error(stdout) {
+        return msg;
+    }
+    if let Some(msg) = try_extract_json_error(stderr) {
+        return msg;
+    }
+    let clean_stderr = stderr
+        .trim()
+        .strip_prefix("gh: ")
+        .unwrap_or(stderr.trim());
+    let clean_stdout = stdout.trim();
+    if !clean_stdout.is_empty() && clean_stdout != clean_stderr {
+        format!("{clean_stderr}: {clean_stdout}")
+    } else {
+        clean_stderr.to_string()
+    }
 }
 
 pub async fn get_current_user() -> Result<String> {
@@ -111,8 +150,9 @@ pub async fn reply_to_comment(
 
     let output = child.wait_with_output().await?;
     if !output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("Failed to post reply: {}", stderr.trim());
+        bail!("{}", format_api_error(&stdout, &stderr));
     }
 
     Ok(())
@@ -175,8 +215,9 @@ pub async fn submit_review(
 
     let output = child.wait_with_output().await?;
     if !output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("gh api POST reviews failed: {}", stderr.trim());
+        bail!("{}", format_api_error(&stdout, &stderr));
     }
 
     Ok(())
@@ -204,8 +245,9 @@ async fn run_graphql(query: &str, variables: &serde_json::Value) -> Result<serde
 
     let output = child.wait_with_output().await?;
     if !output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("GraphQL query failed: {}", stderr.trim());
+        bail!("{}", format_api_error(&stdout, &stderr));
     }
 
     let result: serde_json::Value =
@@ -374,8 +416,9 @@ pub async fn apply_suggestion(
 
     let output = child.wait_with_output().await?;
     if !output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("Failed to apply suggestion: {}", stderr.trim());
+        bail!("{}", format_api_error(&stdout, &stderr));
     }
 
     Ok(())
@@ -406,8 +449,9 @@ pub async fn dismiss_review(
 
     let output = child.wait_with_output().await?;
     if !output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("Failed to dismiss review: {}", stderr.trim());
+        bail!("{}", format_api_error(&stdout, &stderr));
     }
 
     Ok(())
