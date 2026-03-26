@@ -41,6 +41,7 @@ pub fn render_unified_row(
         DisplayRow::CommentHeader {
             author,
             is_pending,
+            is_resolved,
             expanded,
             body_preview,
             body_lines,
@@ -58,6 +59,17 @@ pub fn render_unified_row(
                 " "
             };
             let marker = if *is_reply { "↩" } else { "💬" };
+            let resolved_tag = if *is_resolved { " [Resolved]" } else { "" };
+            let style = if *is_resolved {
+                Theme::resolved_comment()
+            } else {
+                Theme::comment_marker()
+            };
+            let body_style = if *is_resolved {
+                Theme::resolved_comment()
+            } else {
+                Theme::comment_body()
+            };
 
             if *is_pending {
                 if *expanded {
@@ -77,19 +89,19 @@ pub fn render_unified_row(
                 Line::from(vec![
                     Span::styled(indent, Theme::line_number()),
                     Span::styled(
-                        format!("{toggle} ┌─ {marker} {author} "),
-                        Theme::comment_marker(),
+                        format!("{toggle} ┌─ {marker} {author}{resolved_tag} "),
+                        style,
                     ),
-                    Span::styled("─".repeat(30), Theme::comment_marker()),
+                    Span::styled("─".repeat(30), style),
                 ])
             } else {
                 Line::from(vec![
                     Span::styled(indent, Theme::line_number()),
                     Span::styled(
-                        format!("{toggle} {marker} {author}: "),
-                        Theme::comment_marker(),
+                        format!("{toggle} {marker} {author}{resolved_tag}: "),
+                        style,
                     ),
-                    Span::styled(body_preview.clone(), Theme::comment_body()),
+                    Span::styled(body_preview.clone(), body_style),
                 ])
             }
         }
@@ -116,6 +128,24 @@ pub fn render_unified_row(
                 Span::styled(indent, Theme::line_number()),
                 Span::styled(format!("  └{}", "─".repeat(34)), Theme::comment_marker()),
             ])
+        }
+        DisplayRow::SuggestionDiff {
+            original, suggested, ..
+        } => {
+            let mut spans = vec![
+                Span::styled(COMMENT_INDENT.to_string(), Theme::line_number()),
+                Span::styled("  ✏ ", Theme::comment_marker()),
+                Span::styled(original.clone(), Theme::suggestion_removed()),
+                Span::styled(" → ", Theme::comment_marker()),
+                Span::styled(suggested.clone(), Theme::suggestion_added()),
+            ];
+            if suggested.contains('\n') {
+                spans = vec![
+                    Span::styled(COMMENT_INDENT.to_string(), Theme::line_number()),
+                    Span::styled("  ✏ suggestion (multi-line)", Theme::comment_marker()),
+                ];
+            }
+            Line::from(spans)
         }
     };
 

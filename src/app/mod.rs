@@ -10,7 +10,9 @@ use crate::components::file_picker::FilePicker;
 use crate::components::review_confirm::ReviewConfirm;
 use crate::components::search_bar::SearchBar;
 use crate::event::AppEvent;
-use crate::types::{DiffFile, ExistingComment, PrMetadata, ReviewComment};
+use std::collections::HashMap;
+
+use crate::types::{DiffFile, ExistingComment, PrMetadata, ReviewComment, ThreadInfo};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum Focus {
@@ -26,6 +28,7 @@ pub struct App {
     files: Vec<DiffFile>,
     existing_comments: Vec<ExistingComment>,
     pending_comments: Vec<ReviewComment>,
+    thread_map: HashMap<u64, ThreadInfo>,
 
     file_picker: FilePicker,
     diff_view: DiffView,
@@ -54,6 +57,7 @@ impl App {
             files: Vec::new(),
             existing_comments: Vec::new(),
             pending_comments: Vec::new(),
+            thread_map: HashMap::new(),
             file_picker: FilePicker::new(),
             diff_view: DiffView::new(),
             comment_input: CommentInput::new(),
@@ -116,6 +120,19 @@ impl App {
                 }
             }
         });
+
+        let tx4 = self.tx.clone();
+        let repo4 = self.repo.clone();
+        tokio::spawn(async move {
+            match crate::gh::fetch_review_threads(&repo4, pr).await {
+                Ok(threads) => {
+                    let _ = tx4.send(AppEvent::ThreadsLoaded(threads));
+                }
+                Err(e) => {
+                    let _ = tx4.send(AppEvent::Error(format!("Failed to load threads: {e}")));
+                }
+            }
+        });
     }
 
     pub fn handle_event(&mut self, event: AppEvent) {
@@ -137,6 +154,23 @@ impl App {
                 self.existing_comments = comments;
                 self.rebuild_display();
             }
+            AppEvent::ThreadsLoaded(threads) => {
+                self.thread_map = threads;
+                self.rebuild_display();
+            }
+            AppEvent::ThreadResolveToggled => {
+                self.status_msg = "✓ Thread updated".to_string();
+                self.status_is_error = false;
+                self.reload_threads();
+            }
+            AppEvent::ReviewDismissed => {
+                self.status_msg = "✓ Review dismissed".to_string();
+                self.status_is_error = false;
+            }
+            AppEvent::SuggestionAccepted => {
+                self.status_msg = "✓ Suggestion applied".to_string();
+                self.status_is_error = false;
+            }
             AppEvent::FileContentLoaded {
                 path,
                 base_content,
@@ -149,14 +183,7 @@ impl App {
                 self.status_is_error = false;
                 self.pending_comments.clear();
                 self.rebuild_display();
-                let tx = self.tx.clone();
-                let repo = self.repo.clone();
-                let pr = self.pr_number;
-                tokio::spawn(async move {
-                    if let Ok(comments) = crate::gh::fetch_review_comments(&repo, pr).await {
-                        let _ = tx.send(AppEvent::CommentsLoaded(comments));
-                    }
-                });
+                self.reload_comments_and_threads();
             }
             AppEvent::Error(msg) => {
                 self.status_msg = msg;
@@ -167,7 +194,34 @@ impl App {
     }
 
     fn rebuild_display(&mut self) {
-        self.diff_view
-            .rebuild_rows(&self.files, &self.existing_comments, &self.pending_comments);
+        self.diff_view.rebuild_rows(
+            &self.files,
+            &self.existing_comments,
+            &self.pending_comments,
+            &self.thread_map,
+        );
+    }
+
+    fn reload_threads(&self) {
+        let tx = self.tx.clone();
+        let repo = self.repo.clone();
+        let pr = self.pr_number;
+        tokio::spawn(async move {
+            if let Ok(threads) = crate::gh::fetch_review_threads(&repo, pr).await {
+                let _ = tx.send(AppEvent::ThreadsLoaded(threads));
+            }
+        });
+    }
+
+    fn reload_comments_and_threads(&self) {
+        let tx = self.tx.clone();
+        let repo = self.repo.clone();
+        let pr = self.pr_number;
+        tokio::spawn(async move {
+            if let Ok(comments) = crate::gh::fetch_review_comments(&repo, pr).await {
+                let _ = tx.send(AppEvent::CommentsLoaded(comments));
+            }
+        });
+        self.reload_threads();
     }
 }

@@ -13,7 +13,7 @@ use super::actions::{Action, key_to_action, pending_key_to_action};
 impl App {
     pub(super) fn handle_key(&mut self, key: crossterm::event::KeyEvent) {
         if self.review_confirm.visible {
-            self.handle_review_confirm_key(key.code);
+            self.handle_review_confirm_key(key);
             return;
         }
 
@@ -53,7 +53,9 @@ impl App {
         match action {
             Action::Quit => self.should_quit = true,
             Action::ClearSearchOrQuit => {
-                if self.diff_view.search.is_active() {
+                if self.diff_view.is_visual_mode() {
+                    self.diff_view.cancel_visual();
+                } else if self.diff_view.search.is_active() {
                     self.diff_view.search.clear();
                     self.status_msg.clear();
                 } else {
@@ -140,23 +142,87 @@ impl App {
             }
             Action::ToggleDiffMode => self.diff_view.toggle_mode(),
             Action::StartComment => {
-                if let Some(target) = self.diff_view.comment_reply_target() {
+                if self.diff_view.is_visual_mode() {
+                    self.start_visual_comment();
+                } else if let Some(pt) = self.diff_view.pending_comment_at_cursor() {
+                    if let Some(pc) = self.pending_comments.get(pt.pending_idx) {
+                        self.comment_input.open_edit(
+                            pt.pending_idx,
+                            pc.path.clone(),
+                            pc.line,
+                            pc.side,
+                            &pc.body,
+                        );
+                    }
+                } else if let Some(target) = self.diff_view.comment_reply_target() {
                     self.comment_input
                         .open_reply(target.github_id, target.author);
                 } else {
                     self.start_comment();
                 }
             }
-            Action::ExpandContextOrToggleComment => {
-                if self.diff_view.toggle_comment_expand() {
-                    self.rebuild_display();
-                } else {
-                    self.request_expand();
+            Action::DiscardPendingComment => {
+                if let Some(pt) = self.diff_view.pending_comment_at_cursor() {
+                    if pt.pending_idx < self.pending_comments.len() {
+                        self.pending_comments.remove(pt.pending_idx);
+                        self.rebuild_display();
+                    }
                 }
+            }
+            Action::StartSuggestion => {
+                if self.diff_view.is_visual_mode() {
+                    if let Some(content) = self.diff_view.visual_selection_content()
+                        && let Some((start, end)) = self.diff_view.visual_selection_targets()
+                        && let Some(file) = self.files.get(start.file_idx)
+                    {
+                        self.comment_input.open_suggestion_range(
+                            file.path.clone(),
+                            start.line,
+                            start.side,
+                            end.line,
+                            end.side,
+                            &content,
+                        );
+                    }
+                    self.diff_view.cancel_visual();
+                } else if let Some(content) = self.diff_view.current_line_content()
+                    && let Some(target) = self.diff_view.current_line_info()
+                    && let Some(file) = self.files.get(target.file_idx)
+                {
+                    self.comment_input.open_suggestion(
+                        file.path.clone(),
+                        target.line,
+                        target.side,
+                        &content,
+                    );
+                }
+            }
+            Action::ExpandContext => {
+                self.request_expand();
             }
             Action::ShowReviewConfirm(event) => {
                 self.review_confirm
                     .show(event, self.pending_comments.len());
+            }
+            Action::ToggleResolveThread => {
+                if let Some(target) = self.diff_view.thread_resolve_target() {
+                    self.toggle_resolve_thread(target.thread_node_id, target.is_resolved);
+                }
+            }
+            Action::AcceptSuggestion => {
+                if let Some(target) = self.diff_view.suggestion_at_cursor() {
+                    self.accept_suggestion(target);
+                }
+            }
+            Action::Unapprove => {
+                self.review_confirm.show(ReviewEvent::Unapprove, 0);
+            }
+            Action::StartVisualSelect => {
+                if self.diff_view.is_visual_mode() {
+                    self.diff_view.cancel_visual();
+                } else {
+                    self.diff_view.start_visual();
+                }
             }
             Action::OpenInBrowser => self.open_in_browser(),
             Action::PendingKey(c) => self.pending_key = Some(c),
@@ -173,15 +239,26 @@ impl App {
 
     // --- Modal key handlers ---
 
-    fn handle_review_confirm_key(&mut self, code: KeyCode) {
-        match code {
-            KeyCode::Enter => {
-                let event = self.review_confirm.event;
-                self.review_confirm.hide();
-                self.submit_review(event);
+    fn handle_review_confirm_key(&mut self, key: crossterm::event::KeyEvent) {
+        use crossterm::event::KeyModifiers;
+        let is_submit = matches!(key.code,
+            KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL)
+        );
+
+        if is_submit {
+            let event = self.review_confirm.event;
+            let body = self.review_confirm.body_text();
+            self.review_confirm.hide();
+            if event == ReviewEvent::Unapprove {
+                self.unapprove(body);
+            } else {
+                self.submit_review(event, body);
             }
-            KeyCode::Esc => self.review_confirm.hide(),
-            _ => {}
+        } else if key.code == KeyCode::Esc {
+            self.review_confirm.hide();
+        } else {
+            let input: Input = key.into();
+            self.review_confirm.handle_input(input);
         }
     }
 
@@ -191,12 +268,24 @@ impl App {
             CommentAction::Submit(body) => {
                 if let Some(comment_id) = self.comment_input.reply_to_id {
                     self.submit_reply(comment_id, body);
+                } else if let Some(idx) = self.comment_input.editing_pending_idx {
+                    if let Some(pc) = self.pending_comments.get_mut(idx) {
+                        pc.body = body;
+                    }
+                    self.rebuild_display();
                 } else {
+                    let final_body = if self.comment_input.is_suggestion {
+                        format!("```suggestion\n{body}\n```")
+                    } else {
+                        body
+                    };
                     self.pending_comments.push(ReviewComment {
                         path: self.comment_input.file_path.clone(),
                         line: self.comment_input.line,
                         side: self.comment_input.side,
-                        body,
+                        body: final_body,
+                        start_line: self.comment_input.start_line,
+                        start_side: self.comment_input.start_side,
                     });
                     self.rebuild_display();
                 }
@@ -290,6 +379,21 @@ impl App {
 
     // --- Async command handlers ---
 
+    pub(super) fn start_visual_comment(&mut self) {
+        if let Some((start, end)) = self.diff_view.visual_selection_targets() {
+            if let Some(file) = self.files.get(start.file_idx) {
+                self.comment_input.open_range(
+                    file.path.clone(),
+                    start.line,
+                    start.side,
+                    end.line,
+                    end.side,
+                );
+            }
+        }
+        self.diff_view.cancel_visual();
+    }
+
     pub(super) fn start_comment(&mut self) {
         if let Some(target) = self.diff_view.current_line_info()
             && let Some(file) = self.files.get(target.file_idx)
@@ -354,12 +458,11 @@ impl App {
         self.rebuild_display();
     }
 
-    pub(super) fn submit_review(&mut self, event: ReviewEvent) {
+    pub(super) fn submit_review(&mut self, event: ReviewEvent, body: String) {
         let tx = self.tx.clone();
         let repo = self.repo.clone();
         let pr = self.pr_number;
         let comments = self.pending_comments.clone();
-        let body = String::new();
 
         self.status_msg = format!("Submitting {}...", event.label());
 
@@ -393,6 +496,102 @@ impl App {
                 }
                 Err(e) => {
                     let _ = tx.send(AppEvent::Error(format!("Reply failed: {e}")));
+                }
+            }
+        });
+    }
+
+    pub(super) fn toggle_resolve_thread(&mut self, thread_node_id: String, is_resolved: bool) {
+        let tx = self.tx.clone();
+        let action = if is_resolved { "Unresolving" } else { "Resolving" };
+        self.status_msg = format!("{action} thread...");
+        self.status_is_error = false;
+
+        tokio::spawn(async move {
+            let result = if is_resolved {
+                crate::gh::unresolve_review_thread(&thread_node_id).await
+            } else {
+                crate::gh::resolve_review_thread(&thread_node_id).await
+            };
+            match result {
+                Ok(()) => {
+                    let _ = tx.send(AppEvent::ThreadResolveToggled);
+                }
+                Err(e) => {
+                    let _ = tx.send(AppEvent::Error(format!("Thread update failed: {e}")));
+                }
+            }
+        });
+    }
+
+    pub(super) fn accept_suggestion(
+        &mut self,
+        target: crate::components::diff_view::SuggestionTarget,
+    ) {
+        let Some(ref meta) = self.pr_meta else { return };
+        let Some(file) = self.files.get(target.file_idx) else { return };
+
+        let tx = self.tx.clone();
+        let repo = self.repo.clone();
+        let path = file.path.clone();
+        let head_ref = meta.head.sha.clone();
+        let branch = meta.head.ref_name.clone();
+        let suggestion = target.suggested;
+        let line = target.line;
+
+        self.status_msg = "Applying suggestion...".to_string();
+        self.status_is_error = false;
+
+        tokio::spawn(async move {
+            match crate::gh::apply_suggestion(&repo, &path, &head_ref, &branch, line, &suggestion)
+                .await
+            {
+                Ok(()) => {
+                    let _ = tx.send(AppEvent::SuggestionAccepted);
+                }
+                Err(e) => {
+                    let _ = tx.send(AppEvent::Error(format!("Apply suggestion failed: {e}")));
+                }
+            }
+        });
+    }
+
+    pub(super) fn unapprove(&mut self, body: String) {
+        let tx = self.tx.clone();
+        let repo = self.repo.clone();
+        let pr = self.pr_number;
+
+        self.status_msg = "Dismissing approval...".to_string();
+        self.status_is_error = false;
+
+        tokio::spawn(async move {
+            match crate::gh::fetch_pr_reviews(&repo, pr).await {
+                Ok(reviews) => {
+                    let whoami = crate::gh::get_current_user().await.unwrap_or_default();
+                    let approval = reviews
+                        .iter()
+                        .rev()
+                        .find(|r| r.user.login == whoami && r.state == "APPROVED");
+                    let message = if body.is_empty() {
+                        "Unapproved via gh-review".to_string()
+                    } else {
+                        body
+                    };
+                    if let Some(review) = approval {
+                        match crate::gh::dismiss_review(&repo, pr, review.id, &message).await {
+                            Ok(()) => {
+                                let _ = tx.send(AppEvent::ReviewDismissed);
+                            }
+                            Err(e) => {
+                                let _ = tx.send(AppEvent::Error(format!("Dismiss failed: {e}")));
+                            }
+                        }
+                    } else {
+                        let _ = tx.send(AppEvent::Error("No approval found to dismiss".to_string()));
+                    }
+                }
+                Err(e) => {
+                    let _ = tx.send(AppEvent::Error(format!("Failed to fetch reviews: {e}")));
                 }
             }
         });

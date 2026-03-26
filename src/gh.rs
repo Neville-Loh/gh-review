@@ -1,8 +1,11 @@
 use anyhow::{Context, Result, bail};
 use tokio::process::Command;
 
+use std::collections::HashMap;
+
 use crate::types::{
-    DiffFile, ExistingComment, FileStatus, GhFile, PrMetadata, ReviewComment, ReviewEvent,
+    DiffFile, ExistingComment, FileStatus, GhFile, PrMetadata, PrReview, ReviewComment,
+    ReviewEvent, ThreadInfo,
 };
 
 async fn run_gh(args: &[&str]) -> Result<String> {
@@ -18,6 +21,11 @@ async fn run_gh(args: &[&str]) -> Result<String> {
     }
 
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+pub async fn get_current_user() -> Result<String> {
+    let output = run_gh(&["api", "user", "--jq", ".login"]).await?;
+    Ok(output.trim().to_string())
 }
 
 pub async fn fetch_pr_metadata(repo: &str, pr_number: u64) -> Result<PrMetadata> {
@@ -122,15 +130,26 @@ pub async fn submit_review(
     let comments_json: Vec<serde_json::Value> = comments
         .iter()
         .map(|c| {
-            serde_json::json!({
+            let side_str = match c.side {
+                crate::types::Side::Left => "LEFT",
+                crate::types::Side::Right => "RIGHT",
+            };
+            let mut obj = serde_json::json!({
                 "path": c.path,
                 "line": c.line,
-                "side": match c.side {
+                "side": side_str,
+                "body": c.body
+            });
+            if let Some(sl) = c.start_line {
+                obj["start_line"] = serde_json::json!(sl);
+            }
+            if let Some(ss) = c.start_side {
+                obj["start_side"] = serde_json::json!(match ss {
                     crate::types::Side::Left => "LEFT",
                     crate::types::Side::Right => "RIGHT",
-                },
-                "body": c.body
-            })
+                });
+            }
+            obj
         })
         .collect();
 
@@ -158,6 +177,237 @@ pub async fn submit_review(
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         bail!("gh api POST reviews failed: {}", stderr.trim());
+    }
+
+    Ok(())
+}
+
+async fn run_graphql(query: &str, variables: &serde_json::Value) -> Result<serde_json::Value> {
+    let body = serde_json::json!({
+        "query": query,
+        "variables": variables
+    });
+    let json_str = serde_json::to_string(&body)?;
+
+    let mut child = Command::new("gh")
+        .args(["api", "graphql", "--input", "-"])
+        .kill_on_drop(true)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()?;
+
+    use tokio::io::AsyncWriteExt;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(json_str.as_bytes()).await?;
+    }
+
+    let output = child.wait_with_output().await?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("GraphQL query failed: {}", stderr.trim());
+    }
+
+    let result: serde_json::Value =
+        serde_json::from_slice(&output.stdout).context("Failed to parse GraphQL response")?;
+    Ok(result)
+}
+
+/// Fetch review thread resolve status. Returns a map from root comment database ID
+/// to ThreadInfo (thread node_id + is_resolved).
+pub async fn fetch_review_threads(
+    repo: &str,
+    pr_number: u64,
+) -> Result<HashMap<u64, ThreadInfo>> {
+    let (owner, name) = repo
+        .split_once('/')
+        .context("Invalid repo format, expected owner/name")?;
+
+    let query = r#"
+        query($owner: String!, $name: String!, $pr: Int!, $cursor: String) {
+            repository(owner: $owner, name: $name) {
+                pullRequest(number: $pr) {
+                    reviewThreads(first: 100, after: $cursor) {
+                        pageInfo { hasNextPage endCursor }
+                        nodes {
+                            id
+                            isResolved
+                            comments(first: 1) {
+                                nodes { databaseId }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    "#;
+
+    let mut thread_map = HashMap::new();
+    let mut cursor: Option<String> = None;
+
+    loop {
+        let vars = serde_json::json!({
+            "owner": owner,
+            "name": name,
+            "pr": pr_number,
+            "cursor": cursor,
+        });
+
+        let result = run_graphql(query, &vars).await?;
+        let threads = &result["data"]["repository"]["pullRequest"]["reviewThreads"];
+
+        if let Some(nodes) = threads["nodes"].as_array() {
+            for node in nodes {
+                let thread_id = node["id"].as_str().unwrap_or_default().to_string();
+                let is_resolved = node["isResolved"].as_bool().unwrap_or(false);
+                if let Some(first_comment) = node["comments"]["nodes"].as_array().and_then(|a| a.first()) {
+                    if let Some(db_id) = first_comment["databaseId"].as_u64() {
+                        thread_map.insert(db_id, ThreadInfo {
+                            thread_node_id: thread_id,
+                            is_resolved,
+                        });
+                    }
+                }
+            }
+        }
+
+        let has_next = threads["pageInfo"]["hasNextPage"]
+            .as_bool()
+            .unwrap_or(false);
+        if has_next {
+            cursor = threads["pageInfo"]["endCursor"]
+                .as_str()
+                .map(String::from);
+        } else {
+            break;
+        }
+    }
+
+    Ok(thread_map)
+}
+
+pub async fn resolve_review_thread(thread_node_id: &str) -> Result<()> {
+    let query = r#"
+        mutation($threadId: ID!) {
+            resolveReviewThread(input: {threadId: $threadId}) {
+                thread { id isResolved }
+            }
+        }
+    "#;
+    let vars = serde_json::json!({ "threadId": thread_node_id });
+    run_graphql(query, &vars).await?;
+    Ok(())
+}
+
+pub async fn unresolve_review_thread(thread_node_id: &str) -> Result<()> {
+    let query = r#"
+        mutation($threadId: ID!) {
+            unresolveReviewThread(input: {threadId: $threadId}) {
+                thread { id isResolved }
+            }
+        }
+    "#;
+    let vars = serde_json::json!({ "threadId": thread_node_id });
+    run_graphql(query, &vars).await?;
+    Ok(())
+}
+
+pub async fn fetch_pr_reviews(repo: &str, pr_number: u64) -> Result<Vec<PrReview>> {
+    let url = format!("repos/{repo}/pulls/{pr_number}/reviews");
+    let output = run_gh(&["api", &url, "--paginate"]).await?;
+    serde_json::from_str(&output).context("Failed to parse PR reviews")
+}
+
+pub async fn apply_suggestion(
+    repo: &str,
+    path: &str,
+    head_ref: &str,
+    branch: &str,
+    line_number: usize,
+    suggestion: &str,
+) -> Result<()> {
+    let file_content = fetch_file_content(repo, path, head_ref).await?;
+    let mut lines: Vec<&str> = file_content.lines().collect();
+
+    if line_number == 0 || line_number > lines.len() {
+        bail!("Line {line_number} is out of range (file has {} lines)", lines.len());
+    }
+
+    let suggestion_lines: Vec<&str> = suggestion.lines().collect();
+    lines.splice((line_number - 1)..line_number, suggestion_lines);
+
+    let new_content = lines.join("\n") + "\n";
+
+    use base64::Engine;
+    let encoded = base64::engine::general_purpose::STANDARD.encode(new_content.as_bytes());
+
+    let file_url = format!("repos/{repo}/contents/{path}?ref={head_ref}");
+    let file_resp = run_gh(&["api", &file_url]).await?;
+    let file_meta: serde_json::Value =
+        serde_json::from_str(&file_resp).context("Failed to parse file metadata")?;
+    let sha = file_meta["sha"]
+        .as_str()
+        .context("Missing file SHA")?
+        .to_string();
+
+    let update_url = format!("repos/{repo}/contents/{path}");
+    let json_body = serde_json::json!({
+        "message": format!("Apply suggestion to {path}"),
+        "content": encoded,
+        "sha": sha,
+        "branch": branch,
+    });
+    let json_str = serde_json::to_string(&json_body)?;
+
+    let mut child = Command::new("gh")
+        .args(["api", &update_url, "-X", "PUT", "--input", "-"])
+        .kill_on_drop(true)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()?;
+
+    use tokio::io::AsyncWriteExt;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(json_str.as_bytes()).await?;
+    }
+
+    let output = child.wait_with_output().await?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("Failed to apply suggestion: {}", stderr.trim());
+    }
+
+    Ok(())
+}
+
+pub async fn dismiss_review(
+    repo: &str,
+    pr_number: u64,
+    review_id: u64,
+    message: &str,
+) -> Result<()> {
+    let url = format!("repos/{repo}/pulls/{pr_number}/reviews/{review_id}/dismissals");
+    let json_body = serde_json::json!({ "message": message });
+    let json_str = serde_json::to_string(&json_body)?;
+
+    let mut child = Command::new("gh")
+        .args(["api", &url, "-X", "PUT", "--input", "-"])
+        .kill_on_drop(true)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()?;
+
+    use tokio::io::AsyncWriteExt;
+    if let Some(mut stdin) = child.stdin.take() {
+        stdin.write_all(json_str.as_bytes()).await?;
+    }
+
+    let output = child.wait_with_output().await?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        bail!("Failed to dismiss review: {}", stderr.trim());
     }
 
     Ok(())

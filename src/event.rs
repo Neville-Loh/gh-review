@@ -18,6 +18,10 @@ pub enum AppEvent {
         base_content: String,
         head_content: String,
     },
+    ThreadsLoaded(std::collections::HashMap<u64, crate::types::ThreadInfo>),
+    ThreadResolveToggled,
+    ReviewDismissed,
+    SuggestionAccepted,
     ReviewSubmitted,
     Error(String),
 }

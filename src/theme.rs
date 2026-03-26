@@ -164,4 +164,26 @@ impl Theme {
     pub fn search_count() -> Style {
         Style::default().fg(Color::DarkGray)
     }
+
+    pub fn resolved_comment() -> Style {
+        Style::default()
+            .fg(Color::DarkGray)
+            .add_modifier(Modifier::DIM)
+    }
+
+    pub fn suggestion_added() -> Style {
+        Style::default()
+            .fg(Color::Green)
+            .bg(Color::Rgb(0, 30, 0))
+    }
+
+    pub fn suggestion_removed() -> Style {
+        Style::default()
+            .fg(Color::Red)
+            .bg(Color::Rgb(30, 0, 0))
+    }
+
+    pub fn visual_select() -> Style {
+        Style::default().bg(Color::Rgb(60, 60, 30))
+    }
 }
