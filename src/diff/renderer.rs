@@ -2,6 +2,7 @@ use ratatui::{
     style::{Color, Style, Stylize},
     text::{Line, Span},
 };
+use unicode_width::UnicodeWidthStr;
 
 use crate::theme::Theme;
 use crate::types::{DiffFile, DiffLine, LineKind};
@@ -9,8 +10,9 @@ use crate::types::{DiffFile, DiffLine, LineKind};
 pub use super::model::{DisplayRow, build_display_rows};
 
 const COMMENT_INDENT: &str = "              ";
-const REPLY_EXTRA: &str = "    ";
 const LINE_NUM_WIDTH: usize = 5;
+
+const GUTTER_WIDTH: usize = LINE_NUM_WIDTH * 2 + 3;
 
 pub fn render_unified_row(
     row: &DisplayRow,
@@ -43,91 +45,112 @@ pub fn render_unified_row(
             is_pending,
             is_resolved,
             expanded,
+            reply_count,
             body_preview,
-            body_lines,
             is_reply,
             ..
         } => {
-            let indent = if *is_reply {
-                format!("{COMMENT_INDENT}{REPLY_EXTRA}")
+            let (bg, border_color, fg) = if *is_pending {
+                (Theme::pending_bg(), Theme::pending_accent(), Theme::pending_fg())
+            } else if *is_resolved {
+                (Theme::resolved_bg(), Theme::resolved_accent(), Theme::resolved_fg())
             } else {
-                COMMENT_INDENT.to_string()
+                (Theme::comment_bg(), Theme::comment_accent(), Theme::comment_fg())
             };
-            let toggle = if *body_lines > 1 {
-                if *expanded { "▼" } else { "▶" }
-            } else {
-                " "
-            };
-            let marker = if *is_reply { "↩" } else { "💬" };
-            let resolved_tag = if *is_resolved { " [Resolved]" } else { "" };
-            let style = if *is_resolved {
-                Theme::resolved_comment()
-            } else {
-                Theme::comment_marker()
-            };
-            let body_style = if *is_resolved {
-                Theme::resolved_comment()
-            } else {
-                Theme::comment_body()
-            };
+            let bs = Style::default().fg(border_color);
+            let box_inner = (_width as usize).saturating_sub(GUTTER_WIDTH + 2);
 
-            if *is_pending {
+            if *is_reply {
+                let content = format!(" ↩ {author}");
+                let cw = content.width();
+                let pad = box_inner.saturating_sub(cw);
+                Line::from(vec![
+                    Span::styled(" ".repeat(GUTTER_WIDTH), Style::default()),
+                    Span::styled("│", bs),
+                    Span::styled(content, Style::default().fg(fg).bg(bg)),
+                    Span::styled(" ".repeat(pad), Style::default().bg(bg)),
+                    Span::styled("│", bs),
+                ]).style(Style::default().bg(bg))
+            } else {
+                let toggle = if *expanded { "▼" } else { "▶" };
+                let header = if *is_pending {
+                    format!(" {toggle} 📝 pending  {body_preview}")
+                } else {
+                    let mut h = format!(" {toggle} 💬 {author}");
+                    if *is_resolved {
+                        h.push_str(" ✓ Resolved");
+                    }
+                    if *reply_count > 0 {
+                        h.push_str(&format!(" ({reply_count} replies)"));
+                    }
+                    h
+                };
+                let hw = header.width();
+                let fill = box_inner.saturating_sub(hw);
+
                 if *expanded {
                     Line::from(vec![
-                        Span::styled(indent, Theme::line_number()),
-                        Span::styled(format!("{toggle} ┌─ 📝 pending "), Theme::pending_count()),
-                        Span::styled("─".repeat(30), Theme::pending_count()),
-                    ])
+                        Span::styled(" ".repeat(GUTTER_WIDTH), Style::default()),
+                        Span::styled("┌", bs),
+                        Span::styled(header, Style::default().fg(fg).bg(bg).add_modifier(ratatui::style::Modifier::BOLD)),
+                        Span::styled(" ".repeat(fill), Style::default().bg(bg)),
+                        Span::styled("┐", bs),
+                    ]).style(Style::default().bg(bg))
                 } else {
                     Line::from(vec![
-                        Span::styled(indent, Theme::line_number()),
-                        Span::styled(format!("{toggle} 📝 (pending) "), Theme::pending_count()),
-                        Span::styled(body_preview.clone(), Theme::comment_body()),
-                    ])
+                        Span::styled(" ".repeat(GUTTER_WIDTH), Style::default()),
+                        Span::styled("╶", bs),
+                        Span::styled(format!("{header} "), Style::default().fg(fg).bg(bg)),
+                        Span::styled("─".repeat(fill.saturating_sub(1)), Style::default().fg(border_color).bg(bg)),
+                        Span::styled("╴", bs),
+                    ]).style(Style::default().bg(bg))
                 }
-            } else if *expanded {
-                Line::from(vec![
-                    Span::styled(indent, Theme::line_number()),
-                    Span::styled(
-                        format!("{toggle} ┌─ {marker} {author}{resolved_tag} "),
-                        style,
-                    ),
-                    Span::styled("─".repeat(30), style),
-                ])
-            } else {
-                Line::from(vec![
-                    Span::styled(indent, Theme::line_number()),
-                    Span::styled(
-                        format!("{toggle} {marker} {author}{resolved_tag}: "),
-                        style,
-                    ),
-                    Span::styled(body_preview.clone(), body_style),
-                ])
             }
         }
-        DisplayRow::CommentBodyLine { line, is_reply } => {
-            let indent = if *is_reply {
-                format!("{COMMENT_INDENT}{REPLY_EXTRA}")
+        DisplayRow::CommentBodyLine { line, is_reply, is_resolved, is_pending } => {
+            let (bg, border_color) = if *is_pending {
+                (Theme::pending_bg(), Theme::pending_accent())
+            } else if *is_resolved {
+                (Theme::resolved_bg(), Theme::resolved_accent())
             } else {
-                COMMENT_INDENT.to_string()
+                (Theme::comment_bg(), Theme::comment_accent())
             };
+            let bs = Style::default().fg(border_color);
+            let box_inner = (_width as usize).saturating_sub(GUTTER_WIDTH + 2);
+            let prefix = if *is_reply { "   " } else { " " };
+
+            let content_text: String = line.spans.iter().map(|s| s.content.as_ref()).collect();
+            let content_w = prefix.width() + content_text.width();
+            let pad = box_inner.saturating_sub(content_w);
+
             let mut spans = vec![
-                Span::styled(indent, Theme::line_number()),
-                Span::styled("  │ ", Theme::comment_marker()),
+                Span::styled(" ".repeat(GUTTER_WIDTH), Style::default()),
+                Span::styled("│", bs),
+                Span::styled(prefix, Style::default().bg(bg)),
             ];
-            spans.extend(line.spans.iter().cloned());
-            Line::from(spans)
+            for span in line.spans.iter() {
+                spans.push(Span::styled(span.content.clone(), span.style.bg(bg)));
+            }
+            spans.push(Span::styled(" ".repeat(pad), Style::default().bg(bg)));
+            spans.push(Span::styled("│", bs));
+            Line::from(spans).style(Style::default().bg(bg))
         }
-        DisplayRow::CommentFooter { is_reply } => {
-            let indent = if *is_reply {
-                format!("{COMMENT_INDENT}{REPLY_EXTRA}")
+        DisplayRow::CommentFooter { is_resolved, is_pending, .. } => {
+            let (bg, border_color) = if *is_pending {
+                (Theme::pending_bg(), Theme::pending_accent())
+            } else if *is_resolved {
+                (Theme::resolved_bg(), Theme::resolved_accent())
             } else {
-                COMMENT_INDENT.to_string()
+                (Theme::comment_bg(), Theme::comment_accent())
             };
+            let bs = Style::default().fg(border_color);
+            let box_inner = (_width as usize).saturating_sub(GUTTER_WIDTH + 2);
             Line::from(vec![
-                Span::styled(indent, Theme::line_number()),
-                Span::styled(format!("  └{}", "─".repeat(34)), Theme::comment_marker()),
-            ])
+                Span::styled(" ".repeat(GUTTER_WIDTH), Style::default()),
+                Span::styled("└", bs),
+                Span::styled("─".repeat(box_inner), Style::default().fg(border_color).bg(bg)),
+                Span::styled("┘", bs),
+            ]).style(Style::default().bg(bg))
         }
         DisplayRow::SuggestionDiff {
             original, suggested, ..
