@@ -8,36 +8,39 @@ use ratatui::{
 use crate::theme::Theme;
 
 const BINDINGS: &[(&str, &str)] = &[
+    // Navigation
     ("j/k, ↑/↓", "Scroll line"),
     ("gg / G", "Go to first / last line"),
     ("Ctrl+D / U", "Half page down / up"),
     ("Ctrl+F / B", "Full page down / up"),
     ("H / M / L", "Screen top / middle / bottom"),
+    ("zz / zt / zb", "Center / top / bottom cursor"),
+    ("", ""),
+    // Jumps
     ("] / }", "Next hunk"),
     ("[ / {", "Previous hunk"),
     (") / (", "Next / previous change"),
-    ("n / N", "Next/prev match (or file)"),
-    ("zz / zt / zb", "Center / top / bottom cursor"),
-    ("Tab", "Switch focus: files ↔ diff"),
-    ("t", "Toggle unified / side-by-side"),
-    ("e", "Suggest change on current line"),
-    ("E", "Expand context (+10 lines)"),
     ("", ""),
+    // Search
     ("/", "Search forward in diff"),
     ("?", "Search backward in diff"),
+    ("n / N", "Next / prev match (or file)"),
     ("Esc", "Clear search / cancel / quit"),
     ("", ""),
-    ("c", "Comment (or edit pending)"),
+    // Code actions
     ("v", "Visual select (multi-line)"),
-    ("x", "Discard pending comment"),
-    ("r", "Resolve / unresolve thread"),
-    ("y", "Accept suggestion"),
-    ("Ctrl+S", "Save comment / submit review"),
-    ("a", "Approve PR"),
-    ("s", "Submit review (comment only)"),
-    ("u", "Unapprove (dismiss approval)"),
+    ("E", "Expand context (+10 lines)"),
+    ("zo / zc", "Open / close file fold"),
+    ("", ""),
+    // Review actions
+    ("c", "Comment on line"),
+    ("e", "Suggest change on current line"),
+    ("s", "Submit review"),
+    ("", ""),
+    // General
+    ("Tab", "Switch focus: files ↔ diff"),
+    ("t", "Toggle unified / side-by-side"),
     ("o", "Open in browser"),
-    ("!", "This help"),
     ("q", "Quit"),
 ];
 
