@@ -46,7 +46,8 @@ impl App {
             return;
         }
 
-        if let Some(cmd) = self.keymap.lookup(&key, self.focus) {
+        let context = self.diff_view.current_context();
+        if let Some(cmd) = self.keymap.lookup(&key, self.focus, context) {
             (cmd.execute)(self);
         }
     }

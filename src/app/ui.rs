@@ -74,6 +74,7 @@ impl App {
             ReviewBar::draw(
                 main_layout[3],
                 frame.buffer_mut(),
+                self.diff_view.current_context(),
                 self.pending_comments.len(),
                 &self.status_msg,
                 self.status_is_error,

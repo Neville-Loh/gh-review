@@ -47,6 +47,7 @@ pub enum DisplayRow {
         is_reply: bool,
         is_resolved: bool,
         is_pending: bool,
+        is_suggestion: bool,
     },
     CommentFooter {
         is_reply: bool,
@@ -124,6 +125,7 @@ fn wrap_body_lines(
                 is_reply,
                 is_resolved,
                 is_pending,
+                is_suggestion: false,
             });
         } else {
             for wrapped in wrap_line(&text, max_width) {
@@ -132,6 +134,7 @@ fn wrap_body_lines(
                     is_reply,
                     is_resolved,
                     is_pending,
+                    is_suggestion: false,
                 });
             }
         }

@@ -1,5 +1,22 @@
 use serde::Deserialize;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RowContext {
+    File,
+    Code,
+    Comment,
+    Suggestion,
+}
+
+impl RowContext {
+    pub fn matches(self, binding_ctx: RowContext) -> bool {
+        if self == binding_ctx {
+            return true;
+        }
+        self == RowContext::Suggestion && binding_ctx == RowContext::Comment
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum FileStatus {
     Added,
