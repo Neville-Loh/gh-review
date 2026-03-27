@@ -98,6 +98,7 @@ define_commands! {
     open_command_mode,    "Open command prompt",            false;
     pending_g,            "Start gg sequence",             false;
     pending_z,            "Start zz/zt/zb/zo/zc sequence",  false;
+    fold_toggle,          "Toggle file fold",               false;
     fold_open,            "Expand file fold",               false;
     fold_close,           "Collapse file fold",             false;
 
@@ -293,6 +294,12 @@ mod cmd {
 
     pub fn toggle_view(app: &mut App) {
         app.diff_view.toggle_mode();
+    }
+
+    pub fn fold_toggle(app: &mut App) {
+        if app.diff_view.fold_toggle() {
+            app.rebuild_display();
+        }
     }
 
     pub fn fold_open(app: &mut App) {

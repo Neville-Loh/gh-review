@@ -100,6 +100,7 @@ pub fn build_rows(
         is_reply: false,
         is_resolved,
         is_pending: false,
+        is_suggestion: true,
     });
 
     for hl_line in orig_hl {
@@ -110,6 +111,7 @@ pub fn build_rows(
             is_reply: false,
             is_resolved,
             is_pending: false,
+            is_suggestion: true,
         });
     }
 
@@ -121,6 +123,7 @@ pub fn build_rows(
             is_reply: false,
             is_resolved,
             is_pending: false,
+            is_suggestion: true,
         });
     }
 

@@ -109,7 +109,7 @@ pub fn render_unified_row(
                 }
             }
         }
-        DisplayRow::CommentBodyLine { line, is_reply, is_resolved, is_pending } => {
+        DisplayRow::CommentBodyLine { line, is_reply, is_resolved, is_pending, .. } => {
             let (bg, border_color) = if *is_pending {
                 (Theme::pending_bg(), Theme::pending_accent())
             } else if *is_resolved {
