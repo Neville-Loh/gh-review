@@ -1,4 +1,6 @@
 use crossterm::event::{self, Event, KeyEvent, KeyEventKind};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -30,18 +32,28 @@ pub struct EventHandler {
     rx: mpsc::UnboundedReceiver<AppEvent>,
     tx: mpsc::UnboundedSender<AppEvent>,
     cancel: CancellationToken,
+    paused: Arc<AtomicBool>,
 }
 
 impl EventHandler {
     pub fn new() -> Self {
         let (tx, rx) = mpsc::unbounded_channel();
         let cancel = CancellationToken::new();
+        let paused = Arc::new(AtomicBool::new(false));
 
         let term_tx = tx.clone();
         let term_cancel = cancel.clone();
+        let term_paused = paused.clone();
         std::thread::spawn(move || {
             while !term_cancel.is_cancelled() {
+                if term_paused.load(Ordering::Relaxed) {
+                    std::thread::sleep(Duration::from_millis(50));
+                    continue;
+                }
                 if event::poll(Duration::from_millis(50)).unwrap_or(false) {
+                    if term_paused.load(Ordering::Relaxed) {
+                        continue;
+                    }
                     match event::read() {
                         Ok(Event::Key(key)) if key.kind == KeyEventKind::Press => {
                             if term_tx.send(AppEvent::Key(key)).is_err() {
@@ -73,7 +85,12 @@ impl EventHandler {
             }
         });
 
-        Self { rx, tx, cancel }
+        Self {
+            rx,
+            tx,
+            cancel,
+            paused,
+        }
     }
 
     pub fn sender(&self) -> mpsc::UnboundedSender<AppEvent> {
@@ -82,6 +99,14 @@ impl EventHandler {
 
     pub async fn next(&mut self) -> Option<AppEvent> {
         self.rx.recv().await
+    }
+
+    pub fn pause(&self) {
+        self.paused.store(true, Ordering::Relaxed);
+    }
+
+    pub fn resume(&self) {
+        self.paused.store(false, Ordering::Relaxed);
     }
 
     pub fn stop(&self) {

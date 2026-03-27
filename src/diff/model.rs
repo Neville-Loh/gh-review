@@ -53,11 +53,6 @@ pub enum DisplayRow {
         is_resolved: bool,
         is_pending: bool,
     },
-    SuggestionDiff {
-        original: String,
-        suggested: String,
-        github_id: Option<u64>,
-    },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -67,24 +62,7 @@ pub enum ExpandDirection {
     Down,
 }
 
-fn extract_suggestion(body: &str) -> Option<String> {
-    let mut in_suggestion = false;
-    let mut suggestion_lines = Vec::new();
-
-    for line in body.lines() {
-        if line.trim() == "```suggestion" || line.trim().starts_with("```suggestion ") {
-            in_suggestion = true;
-            continue;
-        }
-        if in_suggestion {
-            if line.trim() == "```" {
-                return Some(suggestion_lines.join("\n"));
-            }
-            suggestion_lines.push(line.to_string());
-        }
-    }
-    None
-}
+use super::suggestion;
 
 fn render_markdown_to_lines(body: &str) -> Vec<Line<'static>> {
     let text = tui_markdown::from_str(body);
@@ -161,6 +139,7 @@ fn wrap_body_lines(
     rows
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn build_display_rows(
     files: &[DiffFile],
     existing_comments: &[ExistingComment],
@@ -250,17 +229,27 @@ pub fn build_display_rows(
                             is_reply: false,
                         });
 
-                        if let Some(suggested) = extract_suggestion(&root.body) {
-                            rows.push(DisplayRow::SuggestionDiff {
-                                original: line.content.clone(),
-                                suggested,
-                                github_id: Some(root.id),
-                            });
-                        }
-
                         if is_expanded {
-                            let md_lines = render_markdown_to_lines(&root.body);
-                            rows.extend(wrap_body_lines(md_lines, body_max_width, false, is_resolved, false));
+                            let sug_text = suggestion::extract(&root.body);
+                            let body_text = if sug_text.is_some() {
+                                suggestion::strip_block(&root.body)
+                            } else {
+                                root.body.clone()
+                            };
+
+                            if !body_text.trim().is_empty() {
+                                let md_lines = render_markdown_to_lines(&body_text);
+                                rows.extend(wrap_body_lines(md_lines, body_max_width, false, is_resolved, false));
+                            }
+
+                            if let Some(ref suggested) = sug_text {
+                                let original_lines = suggestion::collect_original_lines(
+                                    &hunk.lines, line, lineno, root.start_line,
+                                );
+                                rows.extend(suggestion::build_rows(
+                                    &file.path, &original_lines, suggested, is_resolved,
+                                ));
+                            }
 
                             for reply in thread_comments.iter().skip(1) {
                                 rows.push(DisplayRow::CommentHeader {

@@ -279,29 +279,8 @@ impl DiffView {
         })
     }
 
-    /// If cursor is on a SuggestionDiff row, return info for accepting it.
     pub fn suggestion_at_cursor(&self) -> Option<SuggestionTarget> {
-        if let Some(DisplayRow::SuggestionDiff { suggested, github_id: Some(gid), .. }) = self.display_rows.get(self.cursor) {
-            for i in (0..self.cursor).rev() {
-                if let Some(DisplayRow::DiffLine { line, file_idx, .. }) = self.display_rows.get(i) {
-                    let lineno = match line.kind {
-                        crate::types::LineKind::Added | crate::types::LineKind::Context => line.new_lineno,
-                        crate::types::LineKind::Removed => line.old_lineno,
-                    };
-                    if let Some(ln) = lineno {
-                        return Some(SuggestionTarget {
-                            github_id: *gid,
-                            suggested: suggested.clone(),
-                            file_idx: *file_idx,
-                            line: ln,
-                        });
-                    }
-                }
-                if let Some(DisplayRow::FileHeader { .. } | DisplayRow::HunkHeader { .. }) = self.display_rows.get(i) {
-                    break;
-                }
-            }
-        }
+        // TODO: re-implement once suggestions are tracked as structured data
         None
     }
 

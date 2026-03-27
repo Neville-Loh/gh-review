@@ -3,10 +3,13 @@ mod cli;
 mod components;
 mod config;
 mod diff;
+mod dirs;
+mod editor;
 mod event;
 mod gh;
 mod highlight;
 mod search;
+mod terminal;
 mod theme;
 mod types;
 
@@ -83,7 +86,8 @@ async fn run_app(
                 event = events.next() => {
                     app.diff_view.finish_animation();
                     if let Some(event) = event {
-                        app.handle_event(event);
+                        let action = app.handle_event(event);
+                        terminal::handle_action(terminal, &events, &mut app, action)?;
                     }
                 }
                 _ = tokio::time::sleep(std::time::Duration::from_millis(16)) => {
@@ -91,7 +95,8 @@ async fn run_app(
                 }
             }
         } else if let Some(event) = events.next().await {
-            app.handle_event(event);
+            let action = app.handle_event(event);
+            terminal::handle_action(terminal, &events, &mut app, action)?;
         }
     }
 

@@ -214,10 +214,26 @@ impl Theme {
             .bg(Color::Rgb(0, 30, 0))
     }
 
+    pub fn suggestion_added_bg() -> Color {
+        Color::Rgb(0, 30, 0)
+    }
+
+    pub fn suggestion_added_highlight_bg() -> Color {
+        Color::Rgb(0, 100, 0)
+    }
+
     pub fn suggestion_removed() -> Style {
         Style::default()
             .fg(Color::Red)
             .bg(Color::Rgb(30, 0, 0))
+    }
+
+    pub fn suggestion_removed_bg() -> Color {
+        Color::Rgb(30, 0, 0)
+    }
+
+    pub fn suggestion_removed_highlight_bg() -> Color {
+        Color::Rgb(100, 0, 0)
     }
 
     pub fn visual_select() -> Style {
