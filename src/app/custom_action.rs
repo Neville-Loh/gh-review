@@ -43,12 +43,14 @@ impl CustomAction {
 pub struct ResolvedActions {
     pub keyed: HashMap<KeyCombo, CustomAction>,
     pub all: Vec<CustomAction>,
+    pub warnings: Vec<String>,
 }
 
 /// Parse raw actions from config into resolved keyed + named actions.
 pub fn resolve_custom_actions(raw: &[RawAction]) -> ResolvedActions {
     let mut keyed = HashMap::new();
     let mut all = Vec::new();
+    let mut warnings = Vec::new();
 
     for action in raw {
         let description = if action.description.is_empty() {
@@ -63,19 +65,22 @@ pub fn resolve_custom_actions(raw: &[RawAction]) -> ResolvedActions {
             description,
         };
 
-        if !action.key.is_empty() {
+        if !action.key.is_empty() && action.key != "no_op" {
             match parse_key_string(&action.key) {
                 Some(KeyBinding::Single(combo)) => {
                     keyed.insert(combo, custom.clone());
                 }
                 Some(KeyBinding::Pending { .. }) => {
-                    eprintln!(
-                        "warning: pending sequences not supported for custom actions: {:?}",
+                    warnings.push(format!(
+                        "Pending sequences not supported for custom actions: {:?}",
                         action.key
-                    );
+                    ));
                 }
                 None => {
-                    eprintln!("warning: invalid key for custom action: {:?}", action.key);
+                    warnings.push(format!(
+                        "Invalid key for custom action: {:?}",
+                        action.key
+                    ));
                 }
             }
         }
@@ -83,7 +88,7 @@ pub fn resolve_custom_actions(raw: &[RawAction]) -> ResolvedActions {
         all.push(custom);
     }
 
-    ResolvedActions { keyed, all }
+    ResolvedActions { keyed, all, warnings }
 }
 
 impl App {
@@ -115,8 +120,7 @@ impl App {
         let command = action.expand(&vars);
         let description = action.description.clone();
 
-        self.status_msg = format!("Running: {description}...");
-        self.status_is_error = false;
+        self.status.info(format!("Running: {description}..."));
 
         let tx = self.tx.clone();
         tokio::spawn(async move {
