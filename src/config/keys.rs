@@ -47,13 +47,12 @@ pub fn parse_key_string(s: &str) -> Option<KeyBinding> {
     // input when the key part (after the last '-') is a single uppercase letter.
     // This lets "Ctrl-D" mean Ctrl+Shift+D (distinct from "Ctrl-d" = Ctrl+d).
     if let KeyCode::Char(_) = code {
-        if let Some(key_part) = s.rsplit('-').next() {
-            if key_part.len() == 1 {
-                let c = key_part.chars().next().unwrap();
-                if c.is_ascii_uppercase() {
-                    code = KeyCode::Char(c);
-                }
-            }
+        if let Some(key_part) = s.rsplit('-').next()
+            && key_part.len() == 1
+            && let Some(c) = key_part.chars().next()
+            && c.is_ascii_uppercase()
+        {
+            code = KeyCode::Char(c);
         }
         // Strip SHIFT for Char to match KeyCombo::from(&KeyEvent) behavior
         modifiers.remove(KeyModifiers::SHIFT);

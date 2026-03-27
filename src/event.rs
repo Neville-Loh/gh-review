@@ -25,6 +25,10 @@ pub enum AppEvent {
     ReviewDismissed,
     SuggestionAccepted,
     ReviewSubmitted,
+    CustomActionComplete {
+        description: String,
+        result: Result<(), String>,
+    },
     Error(String),
 }
 

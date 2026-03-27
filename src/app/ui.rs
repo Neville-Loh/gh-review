@@ -15,7 +15,7 @@ impl App {
         let size = frame.area();
 
         let completion_h = if self.command_bar.active {
-            self.command_bar.completion_height() + 1
+            self.command_bar.completion_height(&self.keymap) + 1
         } else {
             0
         };
@@ -63,9 +63,9 @@ impl App {
 
         if self.command_bar.active {
             self.command_bar
-                .draw_completions(main_layout[2], frame.buffer_mut());
+                .draw_completions(main_layout[2], frame.buffer_mut(), &self.keymap);
             self.command_bar
-                .draw_input(main_layout[3], frame.buffer_mut());
+                .draw_input(main_layout[3], frame.buffer_mut(), &self.keymap);
         } else if self.search_bar.active {
             let (curr, total) = self.diff_view.search.match_info();
             self.search_bar
@@ -92,7 +92,8 @@ impl App {
         }
 
         if self.show_help {
-            HelpOverlay::draw(size, frame.buffer_mut(), &self.keymap);
+            let custom_help = self.keymap.custom_action_help();
+            HelpOverlay::draw(size, frame.buffer_mut(), &self.keymap, &custom_help);
         }
     }
 

@@ -7,6 +7,7 @@ use crate::config::{KeyBinding, UserConfig, format_key_binding, parse_key_string
 use crate::types::RowContext;
 
 use super::command::{self, Command};
+use super::custom_action::{CustomAction, ResolvedActions};
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub struct KeyCombo {
@@ -79,6 +80,7 @@ struct BindingDef {
 
 pub enum LookupResult {
     Command(&'static Command),
+    CustomAction(CustomAction),
     PendingPrefix(char),
     None,
 }
@@ -90,13 +92,15 @@ pub struct Keymap {
     file_picker: HashMap<KeyCombo, &'static Command>,
     pending: HashMap<char, HashMap<KeyCode, &'static Command>>,
     labels: HashMap<&'static str, Vec<String>>,
+    custom_actions: HashMap<KeyCombo, CustomAction>,
+    all_custom_actions: Vec<CustomAction>,
 }
 
 impl Keymap {
-    pub fn from_config(user_config: &UserConfig) -> Self {
+    pub fn from_config(user_config: &UserConfig, resolved: ResolvedActions) -> Self {
         let mut defs = Self::default_binding_defs();
         Self::apply_overrides(&mut defs, user_config);
-        Self::build(defs)
+        Self::build(defs, resolved)
     }
 
     pub fn lookup(
@@ -124,6 +128,9 @@ impl Keymap {
                     })
                 {
                     return LookupResult::Command(b.command);
+                }
+                if let Some(action) = self.custom_actions.get(&combo) {
+                    return LookupResult::CustomAction(action.clone());
                 }
                 LookupResult::None
             }
@@ -233,6 +240,28 @@ impl Keymap {
                 ("resolve", self.key_label("resolve")),
             ],
         }
+    }
+
+    /// Find a custom action by name (for command bar resolution).
+    pub fn find_custom_action(&self, name: &str) -> Option<&CustomAction> {
+        self.all_custom_actions.iter().find(|a| a.name == name)
+    }
+
+    /// Get all named custom actions for command bar completion.
+    pub fn named_custom_actions(&self) -> impl Iterator<Item = &CustomAction> {
+        self.all_custom_actions.iter().filter(|a| !a.name.is_empty())
+    }
+
+    /// Returns (key_label, description) pairs for all custom actions, for the help overlay.
+    pub fn custom_action_help(&self) -> Vec<(String, String)> {
+        self.custom_actions
+            .iter()
+            .map(|(combo, action)| {
+                let label =
+                    format_key_binding(&KeyBinding::Single(combo.clone()));
+                (label, action.description.clone())
+            })
+            .collect()
     }
 
     // ── Private: declarative binding definitions ──────────────────────
@@ -572,16 +601,21 @@ impl Keymap {
     fn apply_overrides(defs: &mut Vec<BindingDef>, config: &UserConfig) {
         for (cmd_name, key_or_keys) in &config.keys {
             let key_strings = key_or_keys.to_vec();
+
+            let is_no_op = key_strings.iter().any(|s| s == "no_op");
+
             let mut new_keys = Vec::new();
-            for s in &key_strings {
-                if let Some(kb) = parse_key_string(s) {
-                    new_keys.push(kb);
-                } else {
-                    eprintln!("warning: invalid key string: {s:?}");
+            if !is_no_op {
+                for s in &key_strings {
+                    if let Some(kb) = parse_key_string(s) {
+                        new_keys.push(kb);
+                    } else {
+                        eprintln!("warning: invalid key string: {s:?}");
+                    }
                 }
-            }
-            if new_keys.is_empty() {
-                continue;
+                if new_keys.is_empty() {
+                    continue;
+                }
             }
 
             let mut found = false;
@@ -606,7 +640,7 @@ impl Keymap {
         }
     }
 
-    fn build(defs: Vec<BindingDef>) -> Self {
+    fn build(defs: Vec<BindingDef>, resolved: ResolvedActions) -> Self {
         let mut diff_view: HashMap<KeyCombo, Vec<Binding>> = HashMap::new();
         let mut file_picker: HashMap<KeyCombo, &'static Command> = HashMap::new();
         let mut pending: HashMap<char, HashMap<KeyCode, &'static Command>> = HashMap::new();
@@ -662,12 +696,20 @@ impl Keymap {
             file_picker,
             pending,
             labels,
+            custom_actions: resolved.keyed,
+            all_custom_actions: resolved.all,
         }
     }
 }
 
 impl Default for Keymap {
     fn default() -> Self {
-        Self::build(Self::default_binding_defs())
+        Self::build(
+            Self::default_binding_defs(),
+            ResolvedActions {
+                keyed: HashMap::new(),
+                all: Vec::new(),
+            },
+        )
     }
 }

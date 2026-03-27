@@ -4,12 +4,12 @@ mod runtime;
 pub use keys::{KeyBinding, format_key_binding, parse_key_string};
 pub use runtime::Config;
 
-use std::collections::HashMap;
 use serde::Deserialize;
+use std::collections::HashMap;
 
 /// Top-level user config deserialized from `config.toml`.
 ///
-/// Both sections are optional. An empty file or missing file
+/// All sections are optional. An empty file or missing file
 /// results in all defaults.
 #[derive(Deserialize, Default)]
 pub struct UserConfig {
@@ -17,6 +17,8 @@ pub struct UserConfig {
     pub general: GeneralConfig,
     #[serde(default)]
     pub keys: HashMap<String, KeyOrKeys>,
+    #[serde(default)]
+    pub actions: Vec<RawAction>,
 }
 
 /// General (non-keybinding) settings.
@@ -45,6 +47,18 @@ impl KeyOrKeys {
             KeyOrKeys::Multiple(v) => v.clone(),
         }
     }
+}
+
+/// A raw custom action as deserialized from TOML `[[actions]]`.
+#[derive(Deserialize, Clone, Debug)]
+pub struct RawAction {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub key: String,
+    pub command: String,
+    #[serde(default)]
+    pub description: String,
 }
 
 /// Load the user config from the standard config path.
