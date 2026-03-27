@@ -315,6 +315,18 @@ impl Keymap {
                 context: None,
             },
             BindingDef {
+                command: &command::prev_panel,
+                keys: vec![Single('h'.into()), Single(KeyCode::Left.into())],
+                scope: Global,
+                context: None,
+            },
+            BindingDef {
+                command: &command::next_panel,
+                keys: vec![Single('l'.into()), Single(KeyCode::Right.into())],
+                scope: Global,
+                context: None,
+            },
+            BindingDef {
                 command: &command::help,
                 keys: vec![
                     Single('!'.into()),

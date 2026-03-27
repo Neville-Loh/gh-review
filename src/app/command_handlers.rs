@@ -2,7 +2,6 @@ use crate::search::SearchDirection;
 use crate::types::ReviewEvent;
 
 use super::App;
-use super::Focus;
 
 pub fn quit(app: &mut App) {
     app.should_quit = true;
@@ -160,10 +159,15 @@ pub fn help(app: &mut App) {
 }
 
 pub fn switch_focus(app: &mut App) {
-    app.focus = match app.focus {
-        Focus::FilePicker => Focus::DiffView,
-        Focus::DiffView => Focus::FilePicker,
-    };
+    app.focus = app.focus.next();
+}
+
+pub fn next_panel(app: &mut App) {
+    app.focus = app.focus.next();
+}
+
+pub fn prev_panel(app: &mut App) {
+    app.focus = app.focus.prev();
 }
 
 pub fn toggle_view(app: &mut App) {
