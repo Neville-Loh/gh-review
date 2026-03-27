@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.1.3] - 2026-03-27
+
+### Added
+
+- **Edit code with your own editor** — users can now modify code in suggestions using their preferred `$EDITOR`; falls back to a built-in text field on systems without one (e.g. Windows) (#37)
+- **Collapsible files** — open and close files in the diff view with `zo`/`zc` or by pressing Enter on a file header to hide reviewed diffs and reduce clutter (#33)
+- **Row context expansion** — expand context around diff hunks showing line numbers for better orientation (#38)
+- **CLI aliases** — invoke with a PR URL or just a PR number when inside the repo (e.g. `gh-review 42` or `gh-review https://github.com/org/repo/pull/42`) (#34)
+- **Debug mode** — `--debug` flag to dump resolved config and diagnostics for troubleshooting (#32)
+
+### Changed
+
+- **Suggestions render as rich diffs** — code suggestions now display with proper diff formatting instead of plain markdown code fences (#36)
+- **Dynamic keybinding hints** — status bar hints now update based on the current context and active mode instead of being static
+- **Enter to save comments** — pressing Enter now saves the current comment instead of inserting a newline; quality-of-life improvement for faster reviewing (#35)
+- **Scroll animation** — smoother and more responsive scrolling in the diff view (#31)
+- **Resolve/unresolve hotkey** — replaced the `r` (request changes) hotkey with resolve/unresolve thread toggle for faster review workflows (#30)
+- Moved architecture documentation into a separate `docs/architecture.md` file (#27)
+
+### Fixed
+
+- **Side-by-side view rendering** — fixed empty area appearing when scrolling through paired add/remove lines, and comments now render on the correct panel (left for deletions, right for additions) (#29)
+- **Backward search** — `?` search now correctly navigates in reverse direction (#28)
+
 ## [0.1.2] - 2026-03-24
 
 ### Added
