@@ -81,6 +81,8 @@ gh-dash (browse PRs)
 | `[` / `{` | Previous hunk |
 | `)` / `(` | Next / previous change |
 | `n` / `N` | Next / previous file (or search match when search active) |
+| `zo` / `zc` | Expand / collapse file at cursor |
+| `Enter` | Toggle comment expand or file fold |
 | `zz` / `zt` / `zb` | Center / top / bottom cursor in viewport |
 | `Tab` | Switch focus between file list and diff |
 
@@ -90,7 +92,7 @@ gh-dash (browse PRs)
 |-----|--------|
 | `/` | Search forward (regex, smart-case) |
 | `?` | Search backward (in diff view) |
-| `n` / `N` | Next / previous search match |
+| `n` / `N` | Next / previous match (respects search direction) |
 | `Esc` | Cancel search and restore cursor |
 | `Enter` | Confirm search |
 
@@ -101,6 +103,7 @@ In the file picker, `/` opens a fuzzy file filter instead.
 | Key | Action |
 |-----|--------|
 | `t` | Toggle unified / side-by-side view |
+| `zo` / `zc` | Expand / collapse file fold |
 | `e` | Suggest change on current line |
 | `E` | Expand context around cursor (+10 lines) |
 

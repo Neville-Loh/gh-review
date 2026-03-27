@@ -21,6 +21,7 @@ fn file_header(path: &str) -> DisplayRow {
     DisplayRow::FileHeader {
         path: path.to_string(),
         file_idx: 0,
+        collapsed: false,
     }
 }
 

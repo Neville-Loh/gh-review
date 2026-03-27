@@ -11,6 +11,7 @@ pub enum DisplayRow {
     FileHeader {
         path: String,
         file_idx: usize,
+        collapsed: bool,
     },
     HunkHeader {
         text: String,
@@ -168,15 +169,22 @@ pub fn build_display_rows(
     expanded_pending: &std::collections::HashSet<usize>,
     thread_map: &HashMap<u64, ThreadInfo>,
     wrap_width: usize,
+    collapsed_files: &std::collections::HashSet<usize>,
 ) -> Vec<DisplayRow> {
     let mut rows = Vec::new();
     let body_max_width = wrap_width.saturating_sub(GUTTER_WIDTH + 4);
 
     for (file_idx, file) in files.iter().enumerate() {
+        let collapsed = collapsed_files.contains(&file_idx);
         rows.push(DisplayRow::FileHeader {
             path: file.path.clone(),
             file_idx,
+            collapsed,
         });
+
+        if collapsed {
+            continue;
+        }
 
         for (hunk_idx, hunk) in file.hunks.iter().enumerate() {
             rows.push(DisplayRow::HunkHeader {
