@@ -121,7 +121,7 @@ impl CommandBar {
         if matches.len() == 1 {
             return Some(matches[0]);
         }
-        if trimmed == "q" {
+        if trimmed == "q" || trimmed == "q!" {
             return Command::by_name("quit");
         }
         None
