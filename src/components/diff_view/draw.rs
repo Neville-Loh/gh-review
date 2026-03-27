@@ -208,7 +208,6 @@ impl DiffView {
                         DisplayRow::CommentHeader { .. }
                             | DisplayRow::CommentBodyLine { .. }
                             | DisplayRow::CommentFooter { .. }
-                            | DisplayRow::SuggestionDiff { .. }
                     );
                     let w = if is_comment { half_width } else { area.width };
                     let unified =

@@ -158,6 +158,7 @@ pub struct ExistingComment {
     pub path: String,
     pub line: Option<usize>,
     pub side: Option<String>,
+    pub start_line: Option<usize>,
     pub body: String,
     pub user: PrUser,
     #[serde(rename = "created_at")]

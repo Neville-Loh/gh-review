@@ -9,7 +9,6 @@ use crate::types::{DiffFile, DiffLine, LineKind};
 
 pub use super::model::{DisplayRow, build_display_rows};
 
-const COMMENT_INDENT: &str = "              ";
 const LINE_NUM_WIDTH: usize = 5;
 
 const GUTTER_WIDTH: usize = LINE_NUM_WIDTH * 2 + 3;
@@ -126,15 +125,24 @@ pub fn render_unified_row(
             let content_w = prefix.width() + content_text.width();
             let pad = box_inner.saturating_sub(content_w);
 
+            let content_bg = line.spans.iter()
+                .find_map(|s| s.style.bg.filter(|c| *c != Color::Reset))
+                .unwrap_or(bg);
+
             let mut spans = vec![
                 Span::styled(" ".repeat(GUTTER_WIDTH), Style::default()),
                 Span::styled("│", bs),
-                Span::styled(prefix, Style::default().bg(bg)),
+                Span::styled(prefix, Style::default().bg(content_bg)),
             ];
             for span in line.spans.iter() {
-                spans.push(Span::styled(span.content.clone(), span.style.bg(bg)));
+                let style = if span.style.bg.is_some_and(|c| c != Color::Reset) {
+                    span.style
+                } else {
+                    span.style.bg(content_bg)
+                };
+                spans.push(Span::styled(span.content.clone(), style));
             }
-            spans.push(Span::styled(" ".repeat(pad), Style::default().bg(bg)));
+            spans.push(Span::styled(" ".repeat(pad), Style::default().bg(content_bg)));
             spans.push(Span::styled("│", bs));
             Line::from(spans).style(Style::default().bg(bg))
         }
@@ -154,24 +162,6 @@ pub fn render_unified_row(
                 Span::styled("─".repeat(box_inner), Style::default().fg(border_color).bg(bg)),
                 Span::styled("┘", bs),
             ]).style(Style::default().bg(bg))
-        }
-        DisplayRow::SuggestionDiff {
-            original, suggested, ..
-        } => {
-            let mut spans = vec![
-                Span::styled(COMMENT_INDENT.to_string(), Theme::line_number()),
-                Span::styled("  ✏ ", Theme::comment_marker()),
-                Span::styled(original.clone(), Theme::suggestion_removed()),
-                Span::styled(" → ", Theme::comment_marker()),
-                Span::styled(suggested.clone(), Theme::suggestion_added()),
-            ];
-            if suggested.contains('\n') {
-                spans = vec![
-                    Span::styled(COMMENT_INDENT.to_string(), Theme::line_number()),
-                    Span::styled("  ✏ suggestion (multi-line)", Theme::comment_marker()),
-                ];
-            }
-            Line::from(spans)
         }
     };
 

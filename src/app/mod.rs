@@ -23,6 +23,19 @@ pub(crate) enum Focus {
     DiffView,
 }
 
+pub enum Action {
+    None,
+    OpenEditor {
+        file_path: String,
+        line: usize,
+        side: crate::types::Side,
+        start_line: Option<usize>,
+        start_side: Option<crate::types::Side>,
+        content: String,
+        file_ext: String,
+    },
+}
+
 pub struct App {
     pub repo: String,
     pub pr_number: u64,
@@ -49,6 +62,7 @@ pub struct App {
     pub(crate) pending_key: Option<char>,
     pub(crate) visible_height: usize,
 
+    pub(crate) pending_action: Option<Action>,
     pub(crate) config: Config,
     pub(crate) keymap: keymap::Keymap,
     pub(crate) tx: mpsc::UnboundedSender<AppEvent>,
@@ -78,6 +92,7 @@ impl App {
             should_quit: false,
             pending_key: None,
             visible_height: 40,
+            pending_action: None,
             config: Config::default(),
             keymap: keymap::Keymap::default(),
             tx,
@@ -144,7 +159,7 @@ impl App {
         });
     }
 
-    pub fn handle_event(&mut self, event: AppEvent) {
+    pub fn handle_event(&mut self, event: AppEvent) -> Action {
         match event {
             AppEvent::Key(key) => self.handle_key(key),
             AppEvent::Resize(_, _) => {}
@@ -200,6 +215,7 @@ impl App {
                 self.loading = false;
             }
         }
+        self.pending_action.take().unwrap_or(Action::None)
     }
 
     pub(crate) fn rebuild_display(&mut self) {

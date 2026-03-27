@@ -1,6 +1,7 @@
 use std::io::Write;
 use std::sync::Mutex;
 
+#[allow(dead_code)]
 pub struct Config {
     pub smooth_scroll: bool,
     pub debug: bool,
@@ -17,10 +18,13 @@ impl Default for Config {
     }
 }
 
+#[allow(dead_code)]
 impl Config {
     pub fn enable_debug(&mut self) {
         self.debug = true;
-        if let Ok(file) = std::fs::File::create("/tmp/gh-review-debug.log") {
+        let dir = crate::dirs::state_dir();
+        let _ = std::fs::create_dir_all(&dir);
+        if let Ok(file) = std::fs::File::create(dir.join("debug.log")) {
             *self.log_file.lock().unwrap() = Some(file);
         }
     }
@@ -29,11 +33,11 @@ impl Config {
         if !self.debug {
             return;
         }
-        if let Ok(mut guard) = self.log_file.lock() {
-            if let Some(ref mut f) = *guard {
-                let _ = writeln!(f, "{msg}");
-                let _ = f.flush();
-            }
+        if let Ok(mut guard) = self.log_file.lock()
+            && let Some(ref mut f) = *guard
+        {
+            let _ = writeln!(f, "{msg}");
+            let _ = f.flush();
         }
     }
 }

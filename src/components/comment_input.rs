@@ -74,58 +74,6 @@ impl CommentInput {
         self.visible = true;
     }
 
-    pub fn open_suggestion(
-        &mut self,
-        file_path: String,
-        line: usize,
-        side: crate::types::Side,
-        original_content: &str,
-    ) {
-        let content = original_content.strip_prefix(' ').unwrap_or(original_content);
-        let lines = vec![content.to_string()];
-        self.textarea = TextArea::new(lines);
-        self.textarea.set_cursor_line_style(Style::default());
-        self.file_path = file_path;
-        self.line = line;
-        self.side = side;
-        self.reply_to_id = None;
-        self.reply_author.clear();
-        self.editing_pending_idx = None;
-        self.is_suggestion = true;
-        self.start_line = None;
-        self.start_side = None;
-        self.visible = true;
-    }
-
-    pub fn open_suggestion_range(
-        &mut self,
-        file_path: String,
-        start_line: usize,
-        start_side: crate::types::Side,
-        end_line: usize,
-        end_side: crate::types::Side,
-        original_content: &str,
-    ) {
-        let lines: Vec<String> = original_content.lines().map(String::from).collect();
-        let lines = if lines.is_empty() {
-            vec![String::new()]
-        } else {
-            lines
-        };
-        self.textarea = TextArea::new(lines);
-        self.textarea.set_cursor_line_style(Style::default());
-        self.file_path = file_path;
-        self.line = end_line;
-        self.side = end_side;
-        self.reply_to_id = None;
-        self.reply_author.clear();
-        self.editing_pending_idx = None;
-        self.is_suggestion = true;
-        self.start_line = Some(start_line);
-        self.start_side = Some(start_side);
-        self.visible = true;
-    }
-
     pub fn open_range(
         &mut self,
         file_path: String,
