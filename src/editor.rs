@@ -3,10 +3,14 @@ use std::process::Command;
 
 use anyhow::{Context, Result, bail};
 
-fn resolve_editor() -> String {
+fn resolve_editor() -> Option<String> {
     std::env::var("VISUAL")
         .or_else(|_| std::env::var("EDITOR"))
-        .unwrap_or_else(|_| "vi".to_string())
+        .ok()
+}
+
+pub fn has_external_editor() -> bool {
+    resolve_editor().is_some()
 }
 
 /// Write content to a temp file, open it in $VISUAL/$EDITOR, return the edited content.
@@ -23,7 +27,8 @@ pub fn edit_in_external(content: &str, file_ext: &str) -> Result<String> {
         f.flush()?;
     }
 
-    let editor = resolve_editor();
+    let editor = resolve_editor()
+        .ok_or_else(|| anyhow::anyhow!("No editor found ($VISUAL, $EDITOR, or vi)"))?;
     let parts: Vec<&str> = editor.split_whitespace().collect();
     let (cmd, args) = parts
         .split_first()

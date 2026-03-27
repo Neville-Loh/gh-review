@@ -363,40 +363,58 @@ mod cmd {
     }
 
     pub fn suggest(app: &mut App) {
-        let file_ext = |path: &str| -> String {
-            path.rsplit('.').next().unwrap_or("txt").to_string()
-        };
+        let use_external = crate::editor::has_external_editor();
 
         if app.diff_view.is_visual_mode() {
             if let Some(content) = app.diff_view.visual_selection_content()
                 && let Some((start, end)) = app.diff_view.visual_selection_targets()
                 && let Some(file) = app.files.get(start.file_idx)
             {
-                app.pending_action = Some(crate::app::Action::OpenEditor {
-                    file_path: file.path.clone(),
-                    line: end.line,
-                    side: end.side,
-                    start_line: Some(start.line),
-                    start_side: Some(start.side),
-                    content,
-                    file_ext: file_ext(&file.path),
-                });
+                if use_external {
+                    let file_ext = file.path.rsplit('.').next().unwrap_or("txt").to_string();
+                    app.pending_action = Some(crate::app::Action::OpenEditor {
+                        file_path: file.path.clone(),
+                        line: end.line,
+                        side: end.side,
+                        start_line: Some(start.line),
+                        start_side: Some(start.side),
+                        content,
+                        file_ext,
+                    });
+                } else {
+                    app.comment_input.open_suggestion_range(
+                        file.path.clone(),
+                        start.line, start.side,
+                        end.line, end.side,
+                        &content,
+                    );
+                }
             }
             app.diff_view.cancel_visual();
         } else if let Some(content) = app.diff_view.current_line_content()
             && let Some(target) = app.diff_view.current_line_info()
             && let Some(file) = app.files.get(target.file_idx)
         {
-            let clean = content.strip_prefix(' ').unwrap_or(&content).to_string();
-            app.pending_action = Some(crate::app::Action::OpenEditor {
-                file_path: file.path.clone(),
-                line: target.line,
-                side: target.side,
-                start_line: None,
-                start_side: None,
-                content: clean,
-                file_ext: file_ext(&file.path),
-            });
+            if use_external {
+                let clean = content.strip_prefix(' ').unwrap_or(&content).to_string();
+                let file_ext = file.path.rsplit('.').next().unwrap_or("txt").to_string();
+                app.pending_action = Some(crate::app::Action::OpenEditor {
+                    file_path: file.path.clone(),
+                    line: target.line,
+                    side: target.side,
+                    start_line: None,
+                    start_side: None,
+                    content: clean,
+                    file_ext,
+                });
+            } else {
+                app.comment_input.open_suggestion(
+                    file.path.clone(),
+                    target.line,
+                    target.side,
+                    &content,
+                );
+            }
         }
     }
 
