@@ -36,6 +36,14 @@ collapse_all_comments = "Alt-c"
 # Unbind a key with "no_op"
 # screen_bottom = "no_op"
 
+# Aliases — short names for built-in commands (usable in :command bar and [keys])
+[aliases]
+lgtm = "approve"
+rc = "request_changes"
+
+# Disable commands — removes from keymap AND command bar
+disabled_commands = ["approve_with_comment", "request_changes_with_comment"]
+
 # Custom actions — run shell commands with PR context variables
 #
 # Available variables:
