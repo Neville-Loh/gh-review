@@ -14,6 +14,9 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use crossterm::{
     execute,
+    event::{
+        KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
+    },
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{Terminal, backend::CrosstermBackend};
@@ -25,6 +28,7 @@ async fn main() -> Result<()> {
 
     let original_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
+        let _ = execute!(std::io::stdout(), PopKeyboardEnhancementFlags);
         let _ = disable_raw_mode();
         let _ = execute!(std::io::stdout(), LeaveAlternateScreen);
         original_hook(info);
@@ -33,11 +37,16 @@ async fn main() -> Result<()> {
     enable_raw_mode().context("Failed to enable raw mode")?;
     let mut stdout = std::io::stdout();
     execute!(stdout, EnterAlternateScreen).context("Failed to enter alternate screen")?;
+    let _ = execute!(
+        stdout,
+        PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES)
+    );
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend).context("Failed to create terminal")?;
 
     let result = run_app(&mut terminal, repo, pr_number).await;
 
+    let _ = execute!(terminal.backend_mut(), PopKeyboardEnhancementFlags);
     disable_raw_mode().context("Failed to disable raw mode")?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)
         .context("Failed to leave alternate screen")?;

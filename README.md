@@ -118,7 +118,6 @@ In the file picker, `/` opens a fuzzy file filter instead.
 | `c` | Comment on current line (or edit pending / reply) |
 | `v` | Visual select mode for multi-line comments |
 | `x` | Discard pending comment at cursor |
-| `Ctrl+S` | Save comment / confirm review (in textarea modals) |
 | `Esc` | Cancel comment / cancel visual selection |
 | `a` | Approve (quick confirm) |
 | `r` | Resolve / unresolve comment thread |
