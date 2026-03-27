@@ -11,11 +11,18 @@ use crate::theme::Theme;
 pub struct HelpOverlay;
 
 impl HelpOverlay {
-    pub fn draw(area: Rect, buf: &mut Buffer, keymap: &Keymap) {
+    pub fn draw(
+        area: Rect,
+        buf: &mut Buffer,
+        keymap: &Keymap,
+        custom_actions: &[(String, String)],
+    ) {
         let bindings = keymap.help_bindings();
 
+        let total_lines = bindings.len() + if custom_actions.is_empty() { 0 } else { 1 + custom_actions.len() };
+
         let width = 60u16.min(area.width.saturating_sub(4));
-        let height = (bindings.len() as u16 + 5).min(area.height.saturating_sub(4));
+        let height = (total_lines as u16 + 5).min(area.height.saturating_sub(4));
         let x = area.x + (area.width.saturating_sub(width)) / 2;
         let y = area.y + (area.height.saturating_sub(height)) / 2;
         let popup_area = Rect::new(x, y, width, height);
@@ -31,16 +38,25 @@ impl HelpOverlay {
         let inner = block.inner(popup_area);
         Widget::render(block, popup_area, buf);
 
-        let lines: Vec<Line> = bindings
+        let help_line = |key: &str, desc: &str| -> Line<'static> {
+            Line::from(vec![
+                Span::styled(format!("{key:>16}"), Theme::help_key()),
+                Span::styled("  ", Theme::help_desc()),
+                Span::styled(desc.to_string(), Theme::help_desc()),
+            ])
+        };
+
+        let mut lines: Vec<Line> = bindings
             .iter()
-            .map(|(key, desc): &(String, &str)| {
-                Line::from(vec![
-                    Span::styled(format!("{key:>16}"), Theme::help_key()),
-                    Span::styled("  ", Theme::help_desc()),
-                    Span::styled(desc.to_string(), Theme::help_desc()),
-                ])
-            })
+            .map(|(key, desc)| help_line(key, desc))
             .collect();
+
+        if !custom_actions.is_empty() {
+            lines.push(help_line("", ""));
+            for (key, desc) in custom_actions {
+                lines.push(help_line(key, desc));
+            }
+        }
 
         let paragraph = Paragraph::new(lines);
         Widget::render(paragraph, inner, buf);

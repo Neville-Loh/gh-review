@@ -49,6 +49,7 @@ impl App {
         let context = self.diff_view.current_context();
         match self.keymap.lookup(&key, self.focus, context) {
             super::keymap::LookupResult::Command(cmd) => (cmd.execute)(self),
+            super::keymap::LookupResult::CustomAction(action) => self.run_custom_action(&action),
             super::keymap::LookupResult::PendingPrefix(c) => self.pending_key = Some(c),
             super::keymap::LookupResult::None => {}
         }
@@ -96,16 +97,21 @@ impl App {
                     self.command_bar.close();
                     (cmd.execute)(self);
                 } else {
-                    let input = self.command_bar.input.clone();
-                    self.command_bar.close();
-                    if !input.is_empty() {
-                        self.status_msg = format!("Unknown command: {input}");
-                        self.status_is_error = true;
+                    let input = self.command_bar.input.trim().to_string();
+                    if let Some(action) = self.keymap.find_custom_action(&input).cloned() {
+                        self.command_bar.close();
+                        self.run_custom_action(&action);
+                    } else {
+                        self.command_bar.close();
+                        if !input.is_empty() {
+                            self.status_msg = format!("Unknown command: {input}");
+                            self.status_is_error = true;
+                        }
                     }
                 }
             }
             KeyCode::Esc => self.command_bar.close(),
-            KeyCode::Tab => self.command_bar.cycle_completion(),
+            KeyCode::Tab => self.command_bar.cycle_completion(&self.keymap),
             KeyCode::Backspace => self.command_bar.pop_char(),
             KeyCode::Char(c) => self.command_bar.push_char(c),
             _ => {}

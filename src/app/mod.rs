@@ -1,4 +1,6 @@
 pub(crate) mod command;
+mod command_handlers;
+pub(crate) mod custom_action;
 mod handlers;
 pub(crate) mod keymap;
 mod ui;
@@ -15,6 +17,7 @@ use crate::event::AppEvent;
 use std::collections::HashMap;
 
 use crate::config::{Config, load_user_config};
+use custom_action::resolve_custom_actions;
 use crate::types::{DiffFile, ExistingComment, PrMetadata, ReviewComment, ThreadInfo};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -72,7 +75,8 @@ impl App {
     pub fn new(repo: String, pr_number: u64, tx: mpsc::UnboundedSender<AppEvent>) -> Self {
         let user_config = load_user_config();
         let config = Config::from_user_config(&user_config);
-        let keymap = keymap::Keymap::from_config(&user_config);
+        let resolved_actions = resolve_custom_actions(&user_config.actions);
+        let keymap = keymap::Keymap::from_config(&user_config, resolved_actions);
 
         Self {
             repo,
@@ -213,6 +217,19 @@ impl App {
                 self.rebuild_display();
                 self.reload_comments_and_threads();
             }
+            AppEvent::CustomActionComplete {
+                description,
+                result,
+            } => match result {
+                Ok(()) => {
+                    self.status_msg = format!("✓ {description}");
+                    self.status_is_error = false;
+                }
+                Err(msg) => {
+                    self.status_msg = format!("✗ {description}: {msg}");
+                    self.status_is_error = true;
+                }
+            },
             AppEvent::Error(msg) => {
                 self.status_msg = msg;
                 self.status_is_error = true;

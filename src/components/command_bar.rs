@@ -6,9 +6,16 @@ use ratatui::{
 };
 
 use crate::app::command::Command;
+use crate::app::keymap::Keymap;
 use crate::theme::Theme;
 
 const MAX_COMPLETION_ROWS: u16 = 8;
+
+/// An entry in the command bar completion list (either built-in or custom).
+pub struct CompletionEntry {
+    pub name: String,
+    pub doc: String,
+}
 
 pub struct CommandBar {
     pub active: bool,
@@ -47,20 +54,33 @@ impl CommandBar {
         self.completion_idx = None;
     }
 
-    pub fn matching_commands(&self) -> Vec<&'static Command> {
-        let mut matches: Vec<_> = if self.input.is_empty() {
-            Command::typable_commands().collect()
-        } else {
-            Command::typable_commands()
-                .filter(|c| c.name.starts_with(&self.input))
-                .collect()
-        };
-        matches.sort_by(|a, b| a.name.len().cmp(&b.name.len()).then(a.name.cmp(b.name)));
-        matches
+    pub fn matching_commands(&self, keymap: &Keymap) -> Vec<CompletionEntry> {
+        let mut entries: Vec<CompletionEntry> = Vec::new();
+
+        for cmd in Command::typable_commands() {
+            if self.input.is_empty() || cmd.name.starts_with(&self.input) {
+                entries.push(CompletionEntry {
+                    name: cmd.name.to_string(),
+                    doc: cmd.doc.to_string(),
+                });
+            }
+        }
+
+        for action in keymap.named_custom_actions() {
+            if self.input.is_empty() || action.name.starts_with(&self.input) {
+                entries.push(CompletionEntry {
+                    name: action.name.clone(),
+                    doc: action.description.clone(),
+                });
+            }
+        }
+
+        entries.sort_by(|a, b| a.name.len().cmp(&b.name.len()).then(a.name.cmp(&b.name)));
+        entries
     }
 
-    pub fn cycle_completion(&mut self) {
-        let matches = self.matching_commands();
+    pub fn cycle_completion(&mut self, keymap: &Keymap) {
+        let matches = self.matching_commands(keymap);
         if matches.is_empty() {
             return;
         }
@@ -68,7 +88,7 @@ impl CommandBar {
             Some(i) => (i + 1) % matches.len(),
             None => 0,
         };
-        self.input = matches[next].name.to_string();
+        self.input = matches[next].name.clone();
         self.completion_idx = Some(next);
     }
 
@@ -92,13 +112,13 @@ impl CommandBar {
         None
     }
 
-    pub fn completion_height(&self) -> u16 {
-        let matches = self.matching_commands();
+    pub fn completion_height(&self, keymap: &Keymap) -> u16 {
+        let matches = self.matching_commands(keymap);
         (matches.len() as u16).min(MAX_COMPLETION_ROWS)
     }
 
-    pub fn draw_completions(&self, area: Rect, buf: &mut Buffer) {
-        let matches = self.matching_commands();
+    pub fn draw_completions(&self, area: Rect, buf: &mut Buffer, keymap: &Keymap) {
+        let matches = self.matching_commands(keymap);
         if matches.is_empty() {
             return;
         }
@@ -120,7 +140,7 @@ impl CommandBar {
         let lines: Vec<Line> = visible
             .iter()
             .rev()
-            .map(|(i, cmd)| {
+            .map(|(i, entry)| {
                 let is_selected = selected == Some(*i);
                 let name_style = if is_selected {
                     Theme::file_list_selected()
@@ -133,8 +153,8 @@ impl CommandBar {
                     Theme::help_desc()
                 };
                 Line::from(vec![
-                    Span::styled(format!(" {:<20}", cmd.name), name_style),
-                    Span::styled(cmd.doc, doc_style),
+                    Span::styled(format!(" {:<20}", entry.name), name_style),
+                    Span::styled(&entry.doc, doc_style),
                 ])
             })
             .collect();
@@ -143,8 +163,8 @@ impl CommandBar {
         Widget::render(paragraph, inner, buf);
     }
 
-    pub fn draw_input(&self, area: Rect, buf: &mut Buffer) {
-        let matches = self.matching_commands();
+    pub fn draw_input(&self, area: Rect, buf: &mut Buffer, keymap: &Keymap) {
+        let matches = self.matching_commands(keymap);
         let hint = if matches.len() == 1 && !self.input.is_empty() {
             matches[0].name[self.input.len()..].to_string()
         } else {

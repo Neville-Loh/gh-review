@@ -1,0 +1,60 @@
+# gh-review configuration
+#
+# Place this file at:
+#   ~/.config/gh-review/config.toml        (macOS / Linux)
+#   %APPDATA%/gh-review/config.toml        (Windows)
+#   $XDG_CONFIG_HOME/gh-review/config.toml (if XDG_CONFIG_HOME is set)
+#
+# Only include what you want to override. Everything else keeps its default.
+# Run :config-path inside gh-review to see the resolved path.
+
+[general]
+smooth_scroll = true
+
+[keys]
+# Remap keys (only include what you want to change)
+scroll_down = ["j", "Down"]
+scroll_up = ["k", "Up"]
+half_page_down = "Ctrl-d"
+half_page_up = "Ctrl-u"
+goto_first = "gg"
+goto_last = "G"
+approve = "a"
+submit = "s"
+comment_on_line = "c"
+suggest = "e"
+visual = ["v", "V"]
+help = ["!", "F1"]
+switch_focus = "Tab"
+quit = "q"
+
+# Assign hotkeys to commands that have no default key
+request_changes = "Ctrl-r"
+expand_all_comments = "Alt-e"
+collapse_all_comments = "Alt-c"
+
+# Unbind a key with "no_op"
+# screen_bottom = "no_op"
+
+# Custom actions — run shell commands with PR context variables
+#
+# Available variables:
+#   {PR_NUMBER}, {REPO}, {REPO_OWNER}, {REPO_NAME},
+#   {URL}, {BRANCH}, {BASE_BRANCH}
+
+[[actions]]
+name = "lgtm"
+key = "Ctrl-l"
+command = "gh pr review {PR_NUMBER} --repo {REPO} --approve --body 'LGTM, ship it'"
+description = "Approve with LGTM"
+
+[[actions]]
+name = "checkout"
+command = "gh pr checkout {PR_NUMBER} --repo {REPO}"
+description = "Checkout PR locally"
+
+[[actions]]
+name = "codex_review"
+key = "no_op"
+command = "gh pr review {PR_NUMBER} --repo {REPO} --comment --body '@codex review'"
+description = "Request Codex review"
