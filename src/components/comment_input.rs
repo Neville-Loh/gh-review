@@ -193,9 +193,15 @@ impl CommentInput {
                 CommentAction::Cancel
             }
             Input {
-                key: Key::Char('s'),
+                key: Key::Enter,
                 ctrl: true,
                 ..
+            } => {
+                self.textarea.insert_newline();
+                CommentAction::None
+            }
+            Input {
+                key: Key::Enter, ..
             } => self.submit(),
             input => {
                 self.textarea.input(input);
@@ -241,7 +247,7 @@ impl CommentInput {
         // Help text at the bottom of the popup
         let help_y = popup_area.y + popup_area.height.saturating_sub(1);
         if help_y < area.y + area.height {
-            let help = " Ctrl+S save │ Esc cancel ";
+            let help = " Enter save │ Ctrl+Enter newline │ Esc cancel ";
             let help_x = popup_area.x + 1;
             buf.set_string(help_x, help_y, help, Theme::help_desc());
         }
