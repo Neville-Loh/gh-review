@@ -465,6 +465,32 @@ fn search_skips_comment_footer() {
     assert_eq!(s.match_info().1, 1); // only the diff row
 }
 
+// --- backward search: n should continue backward ---
+
+#[test]
+fn backward_search_n_continues_backward() {
+    let rows = sample_rows();
+    // 3 "hello" matches: rows 4, 8, 9
+    let mut s = SearchState::new();
+    s.set_anchor(10); // anchor at end
+
+    // Backward search positions at last match at or before anchor
+    let cursor = s.apply("hello", SearchDirection::Backward, &rows, 10);
+    assert_eq!(cursor, Some(9)); // match 3/3 (row 9)
+    assert_eq!(s.match_info(), (2, 3)); // index 2 = match 3/3
+
+    // "n" in backward search should call prev_match (continue backward)
+    assert_eq!(s.prev_match(), Some(8)); // match 2/3 (row 8) — going backward
+    assert_eq!(s.match_info(), (1, 3));
+
+    assert_eq!(s.prev_match(), Some(4)); // match 1/3 (row 4) — still backward
+    assert_eq!(s.match_info(), (0, 3));
+
+    // Wraps to the end
+    assert_eq!(s.prev_match(), Some(9)); // match 3/3 again
+    assert_eq!(s.match_info(), (2, 3));
+}
+
 // --- edge case: single row ---
 
 #[test]
