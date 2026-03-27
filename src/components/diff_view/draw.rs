@@ -107,38 +107,35 @@ impl DiffView {
             ])
             .split(area);
 
-        let end = (scroll + visible_height).min(self.display_rows.len());
-        let visible = &self.display_rows[scroll..end];
-
         let mut left_lines: Vec<Line> = Vec::new();
         let mut right_lines: Vec<Line> = Vec::new();
 
-        let mut i = 0;
-        while i < visible.len() {
-            let global_idx = scroll + i;
+        let mut i = scroll;
+        let mut last_line_kind: Option<crate::types::LineKind> = None;
 
-            match &visible[i] {
+        while i < self.display_rows.len() && left_lines.len() < visible_height {
+            match &self.display_rows[i] {
                 DisplayRow::DiffLine { line, .. }
                     if line.kind == crate::types::LineKind::Removed =>
                 {
-                    let mut removed = Vec::new();
+                    let mut removed: Vec<usize> = Vec::new();
                     let mut j = i;
-                    while j < visible.len() {
-                        if let DisplayRow::DiffLine { line: l, .. } = &visible[j]
+                    while j < self.display_rows.len() {
+                        if let DisplayRow::DiffLine { line: l, .. } = &self.display_rows[j]
                             && l.kind == crate::types::LineKind::Removed
                         {
-                            removed.push((scroll + j, &visible[j]));
+                            removed.push(j);
                             j += 1;
                             continue;
                         }
                         break;
                     }
-                    let mut added = Vec::new();
-                    while j < visible.len() {
-                        if let DisplayRow::DiffLine { line: l, .. } = &visible[j]
+                    let mut added: Vec<usize> = Vec::new();
+                    while j < self.display_rows.len() {
+                        if let DisplayRow::DiffLine { line: l, .. } = &self.display_rows[j]
                             && l.kind == crate::types::LineKind::Added
                         {
-                            added.push((scroll + j, &visible[j]));
+                            added.push(j);
                             j += 1;
                             continue;
                         }
@@ -146,48 +143,91 @@ impl DiffView {
                     }
                     let max_len = removed.len().max(added.len());
                     for k in 0..max_len {
-                        let sel_left = removed.get(k).is_some_and(|(gi, _)| *gi == self.cursor);
-                        let sel_right = added.get(k).is_some_and(|(gi, _)| *gi == self.cursor);
+                        if left_lines.len() >= visible_height {
+                            break;
+                        }
+                        let sel_left = removed.get(k).is_some_and(|gi| *gi == self.cursor);
+                        let sel_right = added.get(k).is_some_and(|gi| *gi == self.cursor);
                         let selected = sel_left || sel_right;
 
                         let mut left = removed
                             .get(k)
-                            .map(|(_, row)| {
-                                render_sbs_row(row, &self.files, half_width, selected).0
+                            .map(|gi| {
+                                render_sbs_row(
+                                    &self.display_rows[*gi],
+                                    &self.files,
+                                    half_width,
+                                    selected,
+                                )
+                                .0
                             })
                             .unwrap_or_default();
                         let mut right = added
                             .get(k)
-                            .map(|(_, row)| {
-                                render_sbs_row(row, &self.files, half_width, selected).1
+                            .map(|gi| {
+                                render_sbs_row(
+                                    &self.display_rows[*gi],
+                                    &self.files,
+                                    half_width,
+                                    selected,
+                                )
+                                .1
                             })
                             .unwrap_or_default();
 
-                        if let Some((gi, _)) = removed.get(k) {
+                        if let Some(gi) = removed.get(k) {
                             left = self.search.highlight(left, *gi);
                         }
-                        if let Some((gi, _)) = added.get(k) {
+                        if let Some(gi) = added.get(k) {
                             right = self.search.highlight(right, *gi);
                         }
 
                         left_lines.push(left);
                         right_lines.push(right);
                     }
+                    last_line_kind = if !added.is_empty() {
+                        Some(crate::types::LineKind::Added)
+                    } else {
+                        Some(crate::types::LineKind::Removed)
+                    };
                     i = j;
                 }
-                DisplayRow::DiffLine { .. } => {
-                    let selected = global_idx == self.cursor;
-                    let (l, r) = render_sbs_row(&visible[i], &self.files, half_width, selected);
-                    left_lines.push(self.search.highlight(l, global_idx));
-                    right_lines.push(self.search.highlight(r, global_idx));
+                DisplayRow::DiffLine { line, .. } => {
+                    let selected = i == self.cursor;
+                    let (l, r) =
+                        render_sbs_row(&self.display_rows[i], &self.files, half_width, selected);
+                    left_lines.push(self.search.highlight(l, i));
+                    right_lines.push(self.search.highlight(r, i));
+                    last_line_kind = Some(line.kind.clone());
                     i += 1;
                 }
-                _ => {
-                    let selected = global_idx == self.cursor;
+                row => {
+                    let selected = i == self.cursor;
+                    let is_comment = matches!(
+                        row,
+                        DisplayRow::CommentHeader { .. }
+                            | DisplayRow::CommentBodyLine { .. }
+                            | DisplayRow::CommentFooter { .. }
+                            | DisplayRow::SuggestionDiff { .. }
+                    );
+                    let w = if is_comment { half_width } else { area.width };
                     let unified =
-                        render_unified_row(&visible[i], &self.files, area.width, selected);
-                    left_lines.push(self.search.highlight(unified, global_idx));
-                    right_lines.push(Line::default());
+                        render_unified_row(&self.display_rows[i], &self.files, w, selected);
+                    let highlighted = self.search.highlight(unified, i);
+
+                    if is_comment
+                        && matches!(
+                            last_line_kind,
+                            Some(crate::types::LineKind::Added)
+                                | Some(crate::types::LineKind::Context)
+                        )
+                    {
+                        left_lines.push(Line::default());
+                        right_lines.push(highlighted);
+                    } else {
+                        left_lines.push(highlighted);
+                        right_lines.push(Line::default());
+                    }
                     i += 1;
                 }
             }
