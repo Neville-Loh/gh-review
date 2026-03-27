@@ -96,8 +96,6 @@ define_commands! {
     collapse_all_comments,"Collapse all comment threads", true;
     file_filter,          "Filter file list",              false;
     open_command_mode,    "Open command prompt",            false;
-    pending_g,            "Start gg sequence",             false;
-    pending_z,            "Start zz/zt/zb/zo/zc sequence",  false;
     fold_toggle,          "Toggle file fold",               false;
     fold_open,            "Expand file fold",               false;
     fold_close,           "Collapse file fold",             false;
@@ -119,6 +117,9 @@ define_commands! {
     // Review -- keybinding only
     comment_on_line,      "Comment on current line",       false;
     visual,               "Visual select mode",            false;
+
+    // Config
+    config_path,          "Show config file path",         true;
 
     // File picker
     picker_down,          "File picker: next",             false;
@@ -356,12 +357,10 @@ mod cmd {
         app.command_bar.open();
     }
 
-    pub fn pending_g(app: &mut App) {
-        app.pending_key = Some('g');
-    }
-
-    pub fn pending_z(app: &mut App) {
-        app.pending_key = Some('z');
+    pub fn config_path(app: &mut App) {
+        let path = crate::dirs::config_dir().join("config.toml");
+        app.status_msg = format!("Config: {}", path.display());
+        app.status_is_error = false;
     }
 
     pub fn comment(app: &mut App) {

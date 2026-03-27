@@ -5,8 +5,9 @@ use ratatui::{
     widgets::{Paragraph, Widget},
 };
 
-use crate::types::RowContext;
+use crate::app::keymap::Keymap;
 use crate::theme::Theme;
+use crate::types::RowContext;
 
 pub struct ReviewBar;
 
@@ -18,10 +19,12 @@ impl ReviewBar {
         pending_count: usize,
         status_msg: &str,
         status_is_error: bool,
+        keymap: &Keymap,
     ) {
-        let mut spans = Self::context_hints(context);
+        let mut spans = Self::context_hints(context, keymap);
 
-        spans.push(Span::styled("[!]", Theme::review_bar_key()));
+        let help_key = keymap.key_label("help");
+        spans.push(Span::styled(format!("[{help_key}]"), Theme::review_bar_key()));
         spans.push(Span::styled(" help ", Theme::review_bar_label()));
 
         if pending_count > 0 {
@@ -47,46 +50,13 @@ impl ReviewBar {
         Widget::render(bar, area, buf);
     }
 
-    fn context_hints(context: RowContext) -> Vec<Span<'static>> {
-        match context {
-            RowContext::File => vec![
-                Span::styled(" [Enter]", Theme::review_bar_key()),
-                Span::styled(" fold ", Theme::review_bar_label()),
-                Span::styled("[a]", Theme::review_bar_key()),
-                Span::styled("pprove ", Theme::review_bar_label()),
-                Span::styled("[s]", Theme::review_bar_key()),
-                Span::styled("ubmit ", Theme::review_bar_label()),
-            ],
-            RowContext::Code => vec![
-                Span::styled(" [c]", Theme::review_bar_key()),
-                Span::styled("omment ", Theme::review_bar_label()),
-                Span::styled("[e]", Theme::review_bar_key()),
-                Span::styled(" suggest ", Theme::review_bar_label()),
-                Span::styled("[v]", Theme::review_bar_key()),
-                Span::styled("isual ", Theme::review_bar_label()),
-                Span::styled("[a]", Theme::review_bar_key()),
-                Span::styled("pprove ", Theme::review_bar_label()),
-                Span::styled("[s]", Theme::review_bar_key()),
-                Span::styled("ubmit ", Theme::review_bar_label()),
-            ],
-            RowContext::Comment => vec![
-                Span::styled(" [c]", Theme::review_bar_key()),
-                Span::styled(" reply ", Theme::review_bar_label()),
-                Span::styled("[r]", Theme::review_bar_key()),
-                Span::styled("esolve ", Theme::review_bar_label()),
-                Span::styled("[x]", Theme::review_bar_key()),
-                Span::styled(" discard ", Theme::review_bar_label()),
-                Span::styled("[Enter]", Theme::review_bar_key()),
-                Span::styled(" toggle ", Theme::review_bar_label()),
-            ],
-            RowContext::Suggestion => vec![
-                Span::styled(" [y]", Theme::review_bar_key()),
-                Span::styled(" accept ", Theme::review_bar_label()),
-                Span::styled("[c]", Theme::review_bar_key()),
-                Span::styled(" reply ", Theme::review_bar_label()),
-                Span::styled("[r]", Theme::review_bar_key()),
-                Span::styled("esolve ", Theme::review_bar_label()),
-            ],
+    fn context_hints(context: RowContext, keymap: &Keymap) -> Vec<Span<'static>> {
+        let pairs = keymap.context_hint_pairs(context);
+        let mut spans = Vec::new();
+        for (desc, key_label) in pairs {
+            spans.push(Span::styled(format!(" [{key_label}]"), Theme::review_bar_key()));
+            spans.push(Span::styled(format!(" {desc} "), Theme::review_bar_label()));
         }
+        spans
     }
 }

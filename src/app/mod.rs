@@ -1,6 +1,6 @@
 pub(crate) mod command;
 mod handlers;
-mod keymap;
+pub(crate) mod keymap;
 mod ui;
 
 use tokio::sync::mpsc;
@@ -14,7 +14,7 @@ use crate::components::search_bar::SearchBar;
 use crate::event::AppEvent;
 use std::collections::HashMap;
 
-use crate::config::Config;
+use crate::config::{Config, load_user_config};
 use crate::types::{DiffFile, ExistingComment, PrMetadata, ReviewComment, ThreadInfo};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -70,6 +70,10 @@ pub struct App {
 
 impl App {
     pub fn new(repo: String, pr_number: u64, tx: mpsc::UnboundedSender<AppEvent>) -> Self {
+        let user_config = load_user_config();
+        let config = Config::from_user_config(&user_config);
+        let keymap = keymap::Keymap::from_config(&user_config);
+
         Self {
             repo,
             pr_number,
@@ -93,8 +97,8 @@ impl App {
             pending_key: None,
             visible_height: 40,
             pending_action: None,
-            config: Config::default(),
-            keymap: keymap::Keymap::default(),
+            config,
+            keymap,
             tx,
         }
     }

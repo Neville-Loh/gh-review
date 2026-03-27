@@ -78,6 +78,7 @@ impl App {
                 self.pending_comments.len(),
                 &self.status_msg,
                 self.status_is_error,
+                &self.keymap,
             );
         }
 
@@ -91,7 +92,7 @@ impl App {
         }
 
         if self.show_help {
-            HelpOverlay::draw(size, frame.buffer_mut());
+            HelpOverlay::draw(size, frame.buffer_mut(), &self.keymap);
         }
     }
 
