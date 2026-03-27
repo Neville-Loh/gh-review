@@ -27,7 +27,7 @@ impl ReviewBar {
             Span::styled("[a]", Theme::review_bar_key()),
             Span::styled("pprove ", Theme::review_bar_label()),
             Span::styled("[r]", Theme::review_bar_key()),
-            Span::styled("equest ", Theme::review_bar_label()),
+            Span::styled("esolve ", Theme::review_bar_label()),
             Span::styled("[s]", Theme::review_bar_key()),
             Span::styled("ubmit ", Theme::review_bar_label()),
             Span::styled("[!]", Theme::review_bar_key()),

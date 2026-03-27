@@ -114,13 +114,12 @@ In the file picker, `/` opens a fuzzy file filter instead.
 | `Ctrl+S` | Save comment / confirm review (in textarea modals) |
 | `Esc` | Cancel comment / cancel visual selection |
 | `a` | Approve (quick confirm) |
-| `r` | Request changes (quick confirm) |
+| `r` | Resolve / unresolve comment thread |
 | `s` | Submit review as comment-only (quick confirm) |
 | `u` | Unapprove — dismiss your own approval |
-| `R` | Resolve / unresolve comment thread |
 | `y` | Accept suggestion (apply as commit) |
 
-Comments are batched into a pending review and submitted together when you press `a`, `r`, or `s`. These open a quick confirm popup (Enter / Esc). For review submissions with a body message, use the `:` command mode (see below).
+Comments are batched into a pending review and submitted together when you press `a` or `s`. These open a quick confirm popup (Enter / Esc). For request changes or review submissions with a body message, use the `:` command mode (see below).
 
 ### Command Mode
 

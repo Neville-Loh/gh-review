@@ -156,11 +156,10 @@ impl Default for Keymap {
         diff_view.insert(KeyCode::Char('E').into(), &command::expand);
 
         diff_view.insert(KeyCode::Char('a').into(), &command::approve);
-        diff_view.insert(KeyCode::Char('r').into(), &command::request_changes);
+        diff_view.insert(KeyCode::Char('r').into(), &command::resolve);
         diff_view.insert(KeyCode::Char('s').into(), &command::submit);
 
         diff_view.insert(KeyCode::Char('x').into(), &command::discard);
-        diff_view.insert(KeyCode::Char('R').into(), &command::resolve);
         diff_view.insert(KeyCode::Char('y').into(), &command::accept_suggestion);
         diff_view.insert(KeyCode::Char('v').into(), &command::visual);
         diff_view.insert(KeyCode::Char('V').into(), &command::visual);
