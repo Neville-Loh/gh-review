@@ -156,22 +156,26 @@ mod cmd {
 
     pub fn half_page_down(app: &mut App) {
         let h = app.visible_height;
-        app.diff_view.page_down(h / 2);
+        let smooth = app.config.smooth_scroll;
+        app.diff_view.page_down(h / 2, smooth);
     }
 
     pub fn half_page_up(app: &mut App) {
         let h = app.visible_height;
-        app.diff_view.page_up(h / 2);
+        let smooth = app.config.smooth_scroll;
+        app.diff_view.page_up(h / 2, smooth);
     }
 
     pub fn full_page_down(app: &mut App) {
         let h = app.visible_height;
-        app.diff_view.page_down(h);
+        let smooth = app.config.smooth_scroll;
+        app.diff_view.page_down(h, smooth);
     }
 
     pub fn full_page_up(app: &mut App) {
         let h = app.visible_height;
-        app.diff_view.page_up(h);
+        let smooth = app.config.smooth_scroll;
+        app.diff_view.page_up(h, smooth);
     }
 
     pub fn goto_first(app: &mut App) {
