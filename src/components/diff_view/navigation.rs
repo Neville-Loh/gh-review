@@ -17,12 +17,77 @@ impl DiffView {
         self.cursor = self.cursor.saturating_sub(n);
     }
 
-    pub fn page_down(&mut self, page_size: usize) {
-        self.scroll_down(page_size);
+    pub fn page_down(&mut self, page_size: usize, smooth: bool) {
+        let max = self.display_rows.len().saturating_sub(1);
+        let target_scroll = (self.scroll_offset + page_size).min(max);
+        let target_cursor = (self.cursor + page_size).min(max);
+
+        if smooth && page_size > 1 {
+            let step = (page_size / 8).max(1);
+            self.scroll_animation = Some(super::ScrollAnimation {
+                target_scroll,
+                target_cursor,
+                step,
+            });
+        } else {
+            self.scroll_offset = target_scroll;
+            self.cursor = target_cursor;
+        }
     }
 
-    pub fn page_up(&mut self, page_size: usize) {
-        self.scroll_up(page_size);
+    pub fn page_up(&mut self, page_size: usize, smooth: bool) {
+        let target_scroll = self.scroll_offset.saturating_sub(page_size);
+        let target_cursor = self.cursor.saturating_sub(page_size);
+
+        if smooth && page_size > 1 {
+            let step = (page_size / 8).max(1);
+            self.scroll_animation = Some(super::ScrollAnimation {
+                target_scroll,
+                target_cursor,
+                step,
+            });
+        } else {
+            self.scroll_offset = target_scroll;
+            self.cursor = target_cursor;
+        }
+    }
+
+    pub fn is_animating(&self) -> bool {
+        self.scroll_animation.is_some()
+    }
+
+    pub fn step_animation(&mut self) {
+        let Some(ref anim) = self.scroll_animation else {
+            return;
+        };
+        let target_scroll = anim.target_scroll;
+        let target_cursor = anim.target_cursor;
+        let step = anim.step;
+
+        if self.scroll_offset < target_scroll {
+            self.scroll_offset = (self.scroll_offset + step).min(target_scroll);
+        } else if self.scroll_offset > target_scroll {
+            let moved = self.scroll_offset.saturating_sub(step);
+            self.scroll_offset = moved.max(target_scroll);
+        }
+
+        if self.cursor < target_cursor {
+            self.cursor = (self.cursor + step).min(target_cursor);
+        } else if self.cursor > target_cursor {
+            let moved = self.cursor.saturating_sub(step);
+            self.cursor = moved.max(target_cursor);
+        }
+
+        if self.scroll_offset == target_scroll && self.cursor == target_cursor {
+            self.scroll_animation = None;
+        }
+    }
+
+    pub fn finish_animation(&mut self) {
+        if let Some(anim) = self.scroll_animation.take() {
+            self.scroll_offset = anim.target_scroll;
+            self.cursor = anim.target_cursor;
+        }
     }
 
     pub fn goto_first(&mut self) {

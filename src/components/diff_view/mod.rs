@@ -6,6 +6,12 @@ use crate::search::{SearchDirection, SearchState};
 use crate::types::{DiffFile, DiffMode, ExistingComment, ReviewComment, ThreadInfo};
 use std::collections::{HashMap, HashSet};
 
+pub(crate) struct ScrollAnimation {
+    target_scroll: usize,
+    target_cursor: usize,
+    step: usize,
+}
+
 pub struct DiffView {
     pub scroll_offset: usize,
     pub cursor: usize,
@@ -17,6 +23,7 @@ pub struct DiffView {
     pub(crate) expanded_pending: HashSet<usize>,
     pub(crate) wrap_width: usize,
     pub visual_anchor: Option<usize>,
+    pub(crate) scroll_animation: Option<ScrollAnimation>,
 }
 
 impl DiffView {
@@ -32,6 +39,7 @@ impl DiffView {
             expanded_pending: HashSet::new(),
             wrap_width: 120,
             visual_anchor: None,
+            scroll_animation: None,
         }
     }
 

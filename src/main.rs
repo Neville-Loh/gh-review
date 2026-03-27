@@ -1,5 +1,6 @@
 mod app;
 mod components;
+mod config;
 mod diff;
 mod event;
 mod gh;
@@ -75,12 +76,25 @@ async fn run_app(
     loop {
         terminal.draw(|frame| app.draw(frame))?;
 
-        if let Some(event) = events.next().await {
-            app.handle_event(event);
-        }
-
         if app.should_quit() {
             break;
+        }
+
+        if app.diff_view.is_animating() {
+            tokio::select! {
+                biased;
+                event = events.next() => {
+                    app.diff_view.finish_animation();
+                    if let Some(event) = event {
+                        app.handle_event(event);
+                    }
+                }
+                _ = tokio::time::sleep(std::time::Duration::from_millis(16)) => {
+                    app.diff_view.step_animation();
+                }
+            }
+        } else if let Some(event) = events.next().await {
+            app.handle_event(event);
         }
     }
 

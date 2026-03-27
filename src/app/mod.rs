@@ -14,6 +14,7 @@ use crate::components::search_bar::SearchBar;
 use crate::event::AppEvent;
 use std::collections::HashMap;
 
+use crate::config::Config;
 use crate::types::{DiffFile, ExistingComment, PrMetadata, ReviewComment, ThreadInfo};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -48,6 +49,7 @@ pub struct App {
     pub(crate) pending_key: Option<char>,
     pub(crate) visible_height: usize,
 
+    pub(crate) config: Config,
     pub(crate) keymap: keymap::Keymap,
     pub(crate) tx: mpsc::UnboundedSender<AppEvent>,
 }
@@ -76,6 +78,7 @@ impl App {
             should_quit: false,
             pending_key: None,
             visible_height: 40,
+            config: Config::default(),
             keymap: keymap::Keymap::default(),
             tx,
         }
