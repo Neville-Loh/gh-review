@@ -97,8 +97,7 @@ impl App {
                 if let Some(cmd) = self.command_bar.resolve() {
                     if self.keymap.is_disabled(cmd.name) {
                         self.command_bar.close();
-                        self.status_msg = format!("Command disabled: {}", cmd.name);
-                        self.status_is_error = true;
+                        self.status.error(format!("Command disabled: {}", cmd.name));
                     } else {
                         self.command_bar.close();
                         (cmd.execute)(self);
@@ -112,8 +111,7 @@ impl App {
                 } else {
                     self.command_bar.close();
                     if !input.is_empty() {
-                        self.status_msg = format!("Unknown command: {input}");
-                        self.status_is_error = true;
+                        self.status.error(format!("Unknown command: {input}"));
                     }
                 }
             }
@@ -161,8 +159,7 @@ impl App {
     pub(crate) fn update_search_status(&mut self) {
         let (curr, total) = self.diff_view.search.match_info();
         if total > 0 {
-            self.status_msg = format!("/{} [{}/{}]", self.search_bar.input, curr + 1, total);
-            self.status_is_error = false;
+            self.status.info(format!("/{} [{}/{}]", self.search_bar.input, curr + 1, total));
         }
     }
 
@@ -172,12 +169,9 @@ impl App {
                 self.search_bar.close();
                 let (curr, total) = self.diff_view.search.match_info();
                 if total > 0 {
-                    self.status_msg =
-                        format!("/{} [{}/{}]", self.search_bar.input, curr + 1, total);
-                    self.status_is_error = false;
+                    self.status.info(format!("/{} [{}/{}]", self.search_bar.input, curr + 1, total));
                 } else if !self.search_bar.input.is_empty() {
-                    self.status_msg = format!("Pattern not found: {}", self.search_bar.input);
-                    self.status_is_error = true;
+                    self.status.error(format!("Pattern not found: {}", self.search_bar.input));
                 }
             }
             KeyCode::Esc => {
@@ -186,7 +180,7 @@ impl App {
                 }
                 self.diff_view.search.clear();
                 self.search_bar.close();
-                self.status_msg.clear();
+                self.status.clear();
             }
             KeyCode::Backspace => {
                 self.search_bar.pop_char();
@@ -327,7 +321,7 @@ impl App {
         let pr = self.pr_number;
         let comments = self.pending_comments.clone();
 
-        self.status_msg = format!("Submitting {}...", event.label());
+        self.status.info(format!("Submitting {}...", event.label()));
 
         tokio::spawn(async move {
             match crate::gh::submit_review(&repo, pr, event, &body, &comments).await {
@@ -346,8 +340,7 @@ impl App {
         let repo = self.repo.clone();
         let pr = self.pr_number;
 
-        self.status_msg = "Posting reply...".to_string();
-        self.status_is_error = false;
+        self.status.info("Posting reply...");
 
         tokio::spawn(async move {
             match crate::gh::reply_to_comment(&repo, pr, comment_id, &body).await {
@@ -371,8 +364,7 @@ impl App {
         } else {
             "Resolving"
         };
-        self.status_msg = format!("{action} thread...");
-        self.status_is_error = false;
+        self.status.info(format!("{action} thread..."));
 
         tokio::spawn(async move {
             let result = if is_resolved {
@@ -408,8 +400,7 @@ impl App {
         let suggestion = target.suggested;
         let line = target.line;
 
-        self.status_msg = "Applying suggestion...".to_string();
-        self.status_is_error = false;
+        self.status.info("Applying suggestion...");
 
         tokio::spawn(async move {
             match crate::gh::apply_suggestion(&repo, &path, &head_ref, &branch, line, &suggestion)
@@ -430,8 +421,7 @@ impl App {
         let repo = self.repo.clone();
         let pr = self.pr_number;
 
-        self.status_msg = "Dismissing approval...".to_string();
-        self.status_is_error = false;
+        self.status.info("Dismissing approval...");
 
         tokio::spawn(async move {
             match crate::gh::fetch_pr_reviews(&repo, pr).await {
@@ -472,8 +462,7 @@ impl App {
     pub(crate) fn open_in_browser(&mut self) {
         let url = format!("https://github.com/{}/pull/{}", self.repo, self.pr_number);
         if let Err(e) = open::that(&url) {
-            self.status_msg = format!("Failed to open browser: {e}");
-            self.status_is_error = true;
+            self.status.error(format!("Failed to open browser: {e}"));
         }
     }
 }
