@@ -16,11 +16,15 @@ Requires the [GitHub CLI](https://cli.github.com/) (`gh`) to be installed and au
 
 ```bash
 gh-review <OWNER/REPO> <PR_NUMBER>
+gh-review <URL>
+gh-review <PR_NUMBER>
 ```
 
 ```bash
 gh-review octocat/hello-world 42
 ```
+
+Accepts GitHub and Graphite PR URLs. When given just a PR number, the repository is inferred from `git remote get-url origin`.
 
 ### With gh-dash
 

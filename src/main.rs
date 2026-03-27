@@ -1,4 +1,5 @@
 mod app;
+mod cli;
 mod components;
 mod config;
 mod diff;
@@ -17,24 +18,11 @@ use crossterm::{
 };
 use ratatui::{Terminal, backend::CrosstermBackend};
 
-#[derive(Parser)]
-#[command(
-    name = "gh-review",
-    about = "Terminal UI for reviewing GitHub pull requests"
-)]
-struct Cli {
-    /// Repository in owner/repo format
-    repo: String,
-
-    /// Pull request number
-    pr_number: u64,
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cli = Cli::parse();
+    let cli = cli::Cli::parse();
+    let (repo, pr_number) = cli::resolve(cli.args)?;
 
-    // Panic hook to restore terminal even on crash
     let original_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         let _ = disable_raw_mode();
@@ -48,7 +36,7 @@ async fn main() -> Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend).context("Failed to create terminal")?;
 
-    let result = run_app(&mut terminal, cli.repo, cli.pr_number).await;
+    let result = run_app(&mut terminal, repo, pr_number).await;
 
     disable_raw_mode().context("Failed to disable raw mode")?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)
