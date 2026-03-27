@@ -196,9 +196,12 @@ pub fn toggle_comment(app: &mut App) {
 
 pub fn expand_all_comments(app: &mut App) {
     use crate::diff::renderer::DisplayRow;
+    app.diff_view.expanded_threads.clear();
+    app.diff_view.expanded_pending.clear();
     for row in &app.diff_view.display_rows {
         if let DisplayRow::CommentHeader {
             thread_root_id: Some(root_id),
+            is_resolved: true,
             ..
         } = row
         {
@@ -217,8 +220,19 @@ pub fn expand_all_comments(app: &mut App) {
 }
 
 pub fn collapse_all_comments(app: &mut App) {
+    use crate::diff::renderer::DisplayRow;
     app.diff_view.expanded_threads.clear();
     app.diff_view.expanded_pending.clear();
+    for row in &app.diff_view.display_rows {
+        if let DisplayRow::CommentHeader {
+            thread_root_id: Some(root_id),
+            is_resolved: false,
+            ..
+        } = row
+        {
+            app.diff_view.expanded_threads.insert(*root_id);
+        }
+    }
     app.rebuild_display();
 }
 

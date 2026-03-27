@@ -215,7 +215,12 @@ pub fn build_display_rows(
                         let thread_info = thread_map.get(root_id);
                         let thread_node_id = thread_info.map(|t| t.thread_node_id.clone());
                         let is_resolved = thread_info.map(|t| t.is_resolved).unwrap_or(false);
-                        let is_expanded = expanded_threads.contains(root_id);
+                        let default_open = !is_resolved;
+                        let is_expanded = if expanded_threads.contains(root_id) {
+                            !default_open
+                        } else {
+                            default_open
+                        };
                         let preview = root.body.lines().next().unwrap_or("").to_string();
 
                         rows.push(DisplayRow::CommentHeader {
