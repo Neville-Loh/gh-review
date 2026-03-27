@@ -86,6 +86,8 @@ define_commands! {
     // UI
     help,                 "Toggle help overlay",           true;
     switch_focus,         "Switch focus: files / diff",    false;
+    next_panel,           "Focus next panel",              false;
+    prev_panel,           "Focus previous panel",          false;
     toggle_view,          "Toggle unified / side-by-side", true;
     toggle_comment,       "Toggle comment expand",         false;
     expand_all_comments,  "Expand all comment threads",   true;

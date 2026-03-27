@@ -26,6 +26,22 @@ pub(crate) enum Focus {
     DiffView,
 }
 
+impl Focus {
+    pub fn next(self) -> Self {
+        match self {
+            Focus::FilePicker => Focus::DiffView,
+            Focus::DiffView => Focus::FilePicker,
+        }
+    }
+
+    pub fn prev(self) -> Self {
+        match self {
+            Focus::FilePicker => Focus::DiffView,
+            Focus::DiffView => Focus::FilePicker,
+        }
+    }
+}
+
 pub enum Action {
     None,
     OpenEditor {
