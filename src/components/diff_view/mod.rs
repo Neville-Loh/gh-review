@@ -24,6 +24,7 @@ pub struct DiffView {
     pub(crate) wrap_width: usize,
     pub visual_anchor: Option<usize>,
     pub(crate) scroll_animation: Option<ScrollAnimation>,
+    pub(crate) collapsed_files: HashSet<usize>,
 }
 
 impl DiffView {
@@ -40,6 +41,7 @@ impl DiffView {
             wrap_width: 120,
             visual_anchor: None,
             scroll_animation: None,
+            collapsed_files: HashSet::new(),
         }
     }
 
@@ -59,6 +61,7 @@ impl DiffView {
             &self.expanded_pending,
             thread_map,
             self.wrap_width,
+            &self.collapsed_files,
         );
         self.search.recompute(&self.display_rows);
     }
@@ -206,6 +209,33 @@ impl DiffView {
             }
         }
         None
+    }
+
+    pub fn fold_close(&mut self) -> bool {
+        if let Some(fi) = self.current_file_idx() {
+            self.collapsed_files.insert(fi);
+            return true;
+        }
+        false
+    }
+
+    pub fn fold_open(&mut self) -> bool {
+        if let Some(fi) = self.current_file_idx() {
+            return self.collapsed_files.remove(&fi);
+        }
+        false
+    }
+
+    pub fn fold_toggle(&mut self) -> bool {
+        if let Some(fi) = self.current_file_idx() {
+            if self.collapsed_files.contains(&fi) {
+                self.collapsed_files.remove(&fi);
+            } else {
+                self.collapsed_files.insert(fi);
+            }
+            return true;
+        }
+        false
     }
 
     pub fn toggle_mode(&mut self) {

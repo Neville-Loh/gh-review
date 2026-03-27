@@ -97,7 +97,9 @@ define_commands! {
     file_filter,          "Filter file list",              false;
     open_command_mode,    "Open command prompt",            false;
     pending_g,            "Start gg sequence",             false;
-    pending_z,            "Start zz/zt/zb sequence",       false;
+    pending_z,            "Start zz/zt/zb/zo/zc sequence",  false;
+    fold_open,            "Expand file fold",               false;
+    fold_close,           "Collapse file fold",             false;
 
     // Review -- typable
     comment,              "Review comment with body",      true;
@@ -293,8 +295,22 @@ mod cmd {
         app.diff_view.toggle_mode();
     }
 
+    pub fn fold_open(app: &mut App) {
+        if app.diff_view.fold_open() {
+            app.rebuild_display();
+        }
+    }
+
+    pub fn fold_close(app: &mut App) {
+        if app.diff_view.fold_close() {
+            app.rebuild_display();
+        }
+    }
+
     pub fn toggle_comment(app: &mut App) {
         if app.diff_view.toggle_comment_expand() {
+            app.rebuild_display();
+        } else if app.diff_view.fold_toggle() {
             app.rebuild_display();
         }
     }

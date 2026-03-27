@@ -176,6 +176,8 @@ impl Default for Keymap {
         z_map.insert(KeyCode::Char('z'), &command::center_cursor as &'static Command);
         z_map.insert(KeyCode::Char('t'), &command::scroll_cursor_top as &'static Command);
         z_map.insert(KeyCode::Char('b'), &command::scroll_cursor_bottom as &'static Command);
+        z_map.insert(KeyCode::Char('o'), &command::fold_open as &'static Command);
+        z_map.insert(KeyCode::Char('c'), &command::fold_close as &'static Command);
         pending.insert('z', z_map);
 
         Self {

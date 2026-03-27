@@ -21,10 +21,13 @@ pub fn render_unified_row(
     is_selected: bool,
 ) -> Line<'static> {
     let base_line = match row {
-        DisplayRow::FileHeader { path, .. } => Line::from(vec![Span::styled(
-            format!("─── {path} ───"),
-            Theme::file_header(),
-        )]),
+        DisplayRow::FileHeader { path, collapsed, .. } => {
+            let indicator = if *collapsed { "▶" } else { "▼" };
+            Line::from(vec![Span::styled(
+                format!("{indicator} ─── {path} ───"),
+                Theme::file_header(),
+            )])
+        }
         DisplayRow::HunkHeader { text, .. } => {
             Line::from(vec![Span::styled(text.clone(), Theme::hunk_header())])
         }
