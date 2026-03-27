@@ -12,7 +12,7 @@ pub fn escape(app: &mut App) {
         app.diff_view.cancel_visual();
     } else if app.diff_view.search.is_active() {
         app.diff_view.search.clear();
-        app.status_msg.clear();
+        app.status.clear();
     } else {
         app.should_quit = true;
     }
@@ -250,8 +250,7 @@ pub fn open_command_mode(app: &mut App) {
 
 pub fn config_path(app: &mut App) {
     let path = crate::dirs::config_dir().join("config.toml");
-    app.status_msg = format!("Config: {}", path.display());
-    app.status_is_error = false;
+    app.status.info(format!("Config: {}", path.display()));
 }
 
 pub fn comment(app: &mut App) {

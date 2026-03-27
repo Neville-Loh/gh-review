@@ -64,16 +64,13 @@ pub fn handle_action(
                         start_side,
                     });
                     app.rebuild_display();
-                    app.status_msg = "Suggestion added".to_string();
-                    app.status_is_error = false;
+                    app.status.success("Suggestion added");
                 }
                 Ok(_) => {
-                    app.status_msg = "No changes made".to_string();
-                    app.status_is_error = false;
+                    app.status.info("No changes made");
                 }
                 Err(e) => {
-                    app.status_msg = format!("Editor failed: {e}");
-                    app.status_is_error = true;
+                    app.status.error(format!("Editor failed: {e}"));
                 }
             }
         }

@@ -96,19 +96,24 @@ pub struct Keymap {
     all_custom_actions: Vec<CustomAction>,
     aliases: HashMap<String, String>,
     disabled_commands: Vec<String>,
+    pub warnings: Vec<String>,
 }
 
 impl Keymap {
     pub fn from_config(user_config: &UserConfig, resolved: ResolvedActions) -> Self {
         let mut defs = Self::default_binding_defs();
-        Self::apply_overrides(&mut defs, user_config);
+        let mut warnings = Vec::new();
+        Self::apply_overrides(&mut defs, user_config, &mut warnings);
         Self::filter_disabled(&mut defs, &user_config.disabled_commands);
-        Self::build(
+        warnings.extend(resolved.warnings.iter().cloned());
+        let mut keymap = Self::build(
             defs,
             resolved,
             user_config.aliases.clone(),
             user_config.disabled_commands.clone(),
-        )
+        );
+        keymap.warnings = warnings;
+        keymap
     }
 
     pub fn lookup(
@@ -634,7 +639,11 @@ impl Keymap {
         ]
     }
 
-    fn apply_overrides(defs: &mut Vec<BindingDef>, config: &UserConfig) {
+    fn apply_overrides(
+        defs: &mut Vec<BindingDef>,
+        config: &UserConfig,
+        warnings: &mut Vec<String>,
+    ) {
         for (cmd_name, key_or_keys) in &config.keys {
             let key_strings = key_or_keys.to_vec();
 
@@ -646,7 +655,7 @@ impl Keymap {
                     if let Some(kb) = parse_key_string(s) {
                         new_keys.push(kb);
                     } else {
-                        eprintln!("warning: invalid key string: {s:?}");
+                        warnings.push(format!("Invalid key string: {s:?}"));
                     }
                 }
                 if new_keys.is_empty() {
@@ -662,7 +671,6 @@ impl Keymap {
                 }
             }
             if !found {
-                // Check built-in commands, then aliases
                 let resolved_cmd = command::Command::by_name(cmd_name).or_else(|| {
                     config
                         .aliases
@@ -677,7 +685,7 @@ impl Keymap {
                         context: None,
                     });
                 } else {
-                    eprintln!("warning: unknown command in config: {cmd_name}");
+                    warnings.push(format!("Unknown command in config: {cmd_name}"));
                 }
             }
         }
@@ -755,6 +763,7 @@ impl Keymap {
             all_custom_actions: resolved.all,
             aliases,
             disabled_commands,
+            warnings: Vec::new(),
         }
     }
 }
@@ -766,6 +775,7 @@ impl Default for Keymap {
             ResolvedActions {
                 keyed: HashMap::new(),
                 all: Vec::new(),
+                warnings: Vec::new(),
             },
             HashMap::new(),
             Vec::new(),

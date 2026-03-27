@@ -6,6 +6,7 @@ use ratatui::{
 };
 
 use crate::app::keymap::Keymap;
+use crate::components::status_line::StatusLine;
 use crate::theme::Theme;
 use crate::types::RowContext;
 
@@ -17,8 +18,7 @@ impl ReviewBar {
         buf: &mut Buffer,
         context: RowContext,
         pending_count: usize,
-        status_msg: &str,
-        status_is_error: bool,
+        status: &StatusLine,
         keymap: &Keymap,
     ) {
         let mut spans = Self::context_hints(context, keymap);
@@ -35,14 +35,14 @@ impl ReviewBar {
             ));
         }
 
-        if !status_msg.is_empty() {
-            let style = if status_is_error {
+        if !status.is_empty() {
+            let style = if status.is_error() {
                 Theme::error()
             } else {
                 Theme::status_added()
             };
             spans.push(Span::styled(" │ ", Theme::review_bar_label()));
-            spans.push(Span::styled(status_msg.to_string(), style));
+            spans.push(Span::styled(status.text().to_string(), style));
         }
 
         let line = Line::from(spans);

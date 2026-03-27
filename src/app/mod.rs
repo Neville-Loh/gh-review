@@ -13,6 +13,7 @@ use crate::components::diff_view::DiffView;
 use crate::components::file_picker::FilePicker;
 use crate::components::review_confirm::ReviewConfirm;
 use crate::components::search_bar::SearchBar;
+use crate::components::status_line::StatusLine;
 use crate::event::AppEvent;
 use std::collections::HashMap;
 
@@ -74,8 +75,7 @@ pub struct App {
 
     pub(crate) focus: Focus,
     pub(crate) show_help: bool,
-    pub(crate) status_msg: String,
-    pub(crate) status_is_error: bool,
+    pub(crate) status: StatusLine,
     pub(crate) loading: bool,
     pub(crate) should_quit: bool,
     pub(crate) pending_key: Option<char>,
@@ -94,6 +94,11 @@ impl App {
         let resolved_actions = resolve_custom_actions(&user_config.actions);
         let keymap = keymap::Keymap::from_config(&user_config, resolved_actions);
 
+        let mut status = StatusLine::new();
+        if !keymap.warnings.is_empty() {
+            status.error(format!("Config: {}", keymap.warnings.join("; ")));
+        }
+
         Self {
             repo,
             pr_number,
@@ -110,8 +115,7 @@ impl App {
             command_bar: CommandBar::new(),
             focus: Focus::DiffView,
             show_help: false,
-            status_msg: String::new(),
-            status_is_error: false,
+            status,
             loading: true,
             should_quit: false,
             pending_key: None,
@@ -207,17 +211,14 @@ impl App {
                 self.rebuild_display();
             }
             AppEvent::ThreadResolveToggled => {
-                self.status_msg = "✓ Thread updated".to_string();
-                self.status_is_error = false;
+                self.status.success("Thread updated");
                 self.reload_threads();
             }
             AppEvent::ReviewDismissed => {
-                self.status_msg = "✓ Review dismissed".to_string();
-                self.status_is_error = false;
+                self.status.success("Review dismissed");
             }
             AppEvent::SuggestionAccepted => {
-                self.status_msg = "✓ Suggestion applied".to_string();
-                self.status_is_error = false;
+                self.status.success("Suggestion applied");
             }
             AppEvent::FileContentLoaded {
                 path,
@@ -227,8 +228,7 @@ impl App {
                 self.expand_context(&path, &base_content, &head_content);
             }
             AppEvent::ReviewSubmitted => {
-                self.status_msg = "✓ Review submitted!".to_string();
-                self.status_is_error = false;
+                self.status.success("Review submitted!");
                 self.pending_comments.clear();
                 self.rebuild_display();
                 self.reload_comments_and_threads();
@@ -237,18 +237,11 @@ impl App {
                 description,
                 result,
             } => match result {
-                Ok(()) => {
-                    self.status_msg = format!("✓ {description}");
-                    self.status_is_error = false;
-                }
-                Err(msg) => {
-                    self.status_msg = format!("✗ {description}: {msg}");
-                    self.status_is_error = true;
-                }
+                Ok(()) => self.status.success(description),
+                Err(msg) => self.status.error(format!("✗ {description}: {msg}")),
             },
             AppEvent::Error(msg) => {
-                self.status_msg = msg;
-                self.status_is_error = true;
+                self.status.error(msg);
                 self.loading = false;
             }
         }
