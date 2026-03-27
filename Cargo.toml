@@ -29,6 +29,8 @@ arborium = { version = "2", default-features = false, features = ["all-languages
 ansi-to-tui = "8.0.1"
 open = "5.3.3"
 directories = "6.0.0"
+toml = "0.8"
+crokey = "1.4"
 
 # The profile that 'dist' will build with
 [profile.dist]

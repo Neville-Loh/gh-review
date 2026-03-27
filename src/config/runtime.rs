@@ -1,11 +1,23 @@
 use std::io::Write;
 use std::sync::Mutex;
 
-#[allow(dead_code)]
+use super::UserConfig;
+
+/// Runtime configuration resolved from the user's TOML config file.
 pub struct Config {
     pub smooth_scroll: bool,
     pub debug: bool,
     log_file: Mutex<Option<std::fs::File>>,
+}
+
+impl Config {
+    pub fn from_user_config(uc: &UserConfig) -> Self {
+        Self {
+            smooth_scroll: uc.general.smooth_scroll.unwrap_or(true),
+            debug: false,
+            log_file: Mutex::new(None),
+        }
+    }
 }
 
 impl Default for Config {

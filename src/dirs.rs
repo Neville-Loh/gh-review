@@ -29,16 +29,18 @@ pub fn state_dir() -> PathBuf {
         .unwrap_or_else(|| std::env::temp_dir().join(APP))
 }
 
-#[allow(dead_code)]
 pub fn config_dir() -> PathBuf {
-    project_dirs()
-        .map(|d| d.config_dir().to_path_buf())
-        .unwrap_or_else(|| {
-            dirs_fallback().join(".config").join(APP)
-        })
+    if let Ok(xdg) = std::env::var("XDG_CONFIG_HOME") {
+        return PathBuf::from(xdg).join(APP);
+    }
+    if cfg!(windows)
+        && let Ok(appdata) = std::env::var("APPDATA")
+    {
+        return PathBuf::from(appdata).join(APP);
+    }
+    dirs_fallback().join(".config").join(APP)
 }
 
-#[allow(dead_code)]
 fn dirs_fallback() -> PathBuf {
     std::env::var("HOME")
         .map(PathBuf::from)
