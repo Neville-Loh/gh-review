@@ -8,10 +8,11 @@
 | M2 — Review Actions | Inline comments, pending review submit, expand context, syntax highlighting | done |
 | M2.6 — Search | Regex search with smart-case, match highlighting, file picker filter | done |
 | M3 — Full Review Comments | Resolve/unresolve threads, suggestion diffs, review body, unapprove | done |
+| M7 — User Configuration | TOML config, remappable keybindings, custom actions | done |
 | M4 — Claude Review | AI-powered code review via Claude API, inline comment display | **next** |
+| M4.5 — PR Description Panel | View and edit PR description, panel navigation between diff/files/description | planned |
 | M5 — Graphite Stacked PRs | Stack detection, navigate between PRs, diff against parent branch | planned |
-| M6 — Polish | Word-level diff, status line | later |
-| M7 — User Configuration | TOML config, remappable keybindings, custom themes, script hooks | later |
+| M6 — Polish | Word-level diff, status line, custom themes | later |
 | M8 — gh-dash-rs Integration | Library crate extraction, native view inside gh-dash Rust rewrite | future |
 | M9 — AI Chat Panel | Side-by-side chat panel for discussing code with Claude while reviewing | future |
 
@@ -19,62 +20,35 @@
 
 ### M1 — Read-only Diff Viewer (done)
 
-```mermaid
-graph TD
-    subgraph m1 [M1: Read-only Diff]
-        A1[Unified diff parser] --> A2[Unified renderer]
-        A1 --> A3[Side-by-side renderer]
-        A4[gh CLI subprocess wrapper] --> A5[Fetch PR files + metadata]
-        A2 --> A6[Scrollable diff viewport]
-        A3 --> A6
-        A5 --> A6
-        A7[File picker sidebar] --> A6
-        A8[File navigation n/N] --> A6
-    end
-```
-
 - Parse GitHub patch format into structured hunks
 - Unified and side-by-side rendering with syntax-colored +/- lines
 - Dual-number gutters (old line / new line)
 - File list sidebar with status indicators and +/- counts
 - Keyboard navigation: scroll, page, jump to file, toggle view mode
+- CLI aliases — invoke with a PR URL or just a PR number when inside the repo
+- Debug mode — `--debug` flag to dump resolved config and diagnostics
+- Cross-platform support (macOS, Linux, Windows)
 
 ### M2 — Review Actions (done)
-
-```mermaid
-graph TD
-    subgraph m2 [M2: Review Actions]
-        B1[Comment input popup] --> B2[Pending review accumulator]
-        B2 --> B3["Submit review (approve / request changes / comment)"]
-        B4[Fetch existing review threads] --> B5[Display inline in diff]
-        B6[Expand context] --> B7[Fetch full file at base+head refs]
-        B7 --> B8[Splice into hunk]
-    end
-```
 
 - Inline comment textarea anchored to cursor line
 - Pending review model — batch comments, submit as one review
 - Approve, request changes, and comment-only submission with confirmation popup
-- Existing review comments displayed inline in the diff
-- Expandable context — fetch full file content and splice +10 lines
-- Expand/collapse multi-line comments with Enter
-- Vim-style navigation (gg, G, H/M/L, ]/[, zz/zt/zb, Ctrl+F/B)
+- Existing review comments displayed inline in the diff with box-drawing thread rendering
+- Expandable context — fetch full file content and splice +10 lines; row context expansion with line numbers
+- Expand/collapse multi-line comments with Enter; bulk expand/collapse all
+- Vim-style navigation (gg, G, H/M/L, ]/[, zz/zt/zb, Ctrl+F/B) with smooth scroll animation
+- Syntax highlighting via tree-sitter (arborium, GitHub Dark theme) for unified and side-by-side views
+- Command mode — vim-style `:` palette with tab-completion, fuzzy matching, and inline docs
+- Collapsible files — `zo`/`zc` or Enter on file header to hide reviewed diffs
+- Dynamic keybinding hints that update based on current context and active mode
+- Enter to save comments (instead of inserting a newline)
+- Open PR in browser (`o`)
 - Clean process shutdown (works as gh-dash subprocess)
 
 ### M2.6 — Search (done)
 
 Vim-style search across diff content and file names.
-
-```mermaid
-graph TD
-    subgraph m26 [M2.6: Search]
-        SR1["/ forward search prompt"] --> SR2[Regex + smart-case matching engine]
-        SR3["? backward search prompt"] --> SR2
-        SR2 --> SR4["Highlight all matches in diff viewport"]
-        SR4 --> SR5["n / N jump to next / previous match"]
-        SR6["File picker: / to filter"] --> SR7["Filter file names as you type"]
-    end
-```
 
 **Diff search (`/` and `?`)**
 - `/` opens a search prompt at the bottom of the screen (forward search)
@@ -100,20 +74,6 @@ graph TD
 
 Complete the review comment workflow to cover all standard GitHub review operations.
 
-```mermaid
-graph TD
-    subgraph m3 [M3: Full Review Comments]
-        RC1[Resolve comment thread] --> RC2[gh API: minimize/resolve]
-        RC3[Unresolve comment thread] --> RC4[gh API: unresolve]
-        RC5["Suggestion diffs"] --> RC6["Render suggestions as inline diffs"]
-        RC7[Approve with body] --> RC8[Review body textarea before submit]
-        RC9[Request changes with body] --> RC8
-        RC10[Unapprove] --> RC11["Dismiss own approval via API"]
-        RC12[Discard pending comment] --> RC13["Remove from pending list"]
-        RC14[Edit pending comment] --> RC15["Re-open textarea with existing body"]
-    end
-```
-
 **Resolve / unresolve threads**
 - Cursor on a comment thread, press a key to resolve (hide) or unresolve (unhide)
 - Uses the GitHub GraphQL API to minimize/resolve the thread
@@ -121,8 +81,9 @@ graph TD
 
 **Suggestion diffs**
 - Press `e` on a diff line to open the line content in an editable textarea
+- External editor support — uses `$EDITOR` when available, falls back to built-in text field
 - Edit freely — on save, compute the diff between original and edited text and auto-generate the GitHub ```` ```suggestion ```` block
-- Existing suggestion comments rendered as inline diffs showing the proposed change (old line -> suggested line)
+- Existing suggestion comments rendered as rich inline diffs (not plain markdown fences)
 - Accept suggestion: apply as a commit directly from the TUI via GitHub API
 
 **Review submission with body**
@@ -144,6 +105,43 @@ graph TD
 - Press `c` to comment on the selected line range
 - `Esc` or `v` again to cancel visual selection
 - GitHub API `start_line` and `start_side` fields used for multi-line comment ranges
+
+### M7 — User Configuration (done)
+
+User-facing config file (`~/.config/gh-review/config.toml`) for personalizing the tool without recompiling.
+
+**Config file**
+- TOML config at `~/.config/gh-review/config.toml` (XDG-compliant)
+- CLI flags override config values
+- Sensible defaults when no config file exists
+
+**Remappable keybindings**
+- Every action (scroll, comment, submit, search, etc.) can be rebound
+- Config section `[keys]` with action-name = key-combo mapping
+- Support modifier combinations (Ctrl, Alt, Shift)
+- Validation on startup — warn on conflicts or unknown actions
+
+```toml
+[keys]
+scroll_down = "j"
+scroll_up = "k"
+submit_approve = "a"
+search_forward = "/"
+next_file = "n"
+```
+
+**Custom actions**
+- Define custom actions that run shell commands on review lifecycle events
+- Actions receive context as environment variables (`GH_REVIEW_REPO`, `GH_REVIEW_PR`, `GH_REVIEW_ACTION`)
+- Bind custom actions to any key via the keybinding system
+- Async execution — actions run in background, don't block the UI
+
+```toml
+[[custom_action]]
+name = "notify_approved"
+command = "notify-send 'PR approved' '$GH_REVIEW_REPO#$GH_REVIEW_PR'"
+key = "ctrl-shift-a"
+```
 
 ### M4 — Claude Review (**next**)
 
@@ -177,6 +175,37 @@ graph TD
 - Context-aware: include file paths, hunk context, and PR description
 - Configurable review focus (security, performance, correctness, style)
 - Severity levels: error, warning, suggestion, nit
+
+### M4.5 — PR Description Panel (planned)
+
+A dedicated panel for viewing and editing the PR description, with keyboard-driven navigation between panels.
+
+```mermaid
+graph TD
+    subgraph m45 [M4.5: PR Description Panel]
+        PD1["Fetch PR title + description via API"] --> PD2["Render markdown description in scrollable panel"]
+        PD2 --> PD3["Edit mode: open description in textarea / $EDITOR"]
+        PD3 --> PD4["Save edits back via GitHub API"]
+        PD5["Panel navigation keybindings"] --> PD6["Jump between file picker / diff / description panels"]
+    end
+```
+
+**Description panel**
+- New panel displaying the PR title, description body, labels, and metadata
+- Markdown rendered with basic formatting (headings, lists, code blocks, links)
+- Scrollable with standard vim navigation (`j`/`k`, `gg`/`G`, `Ctrl+D`/`Ctrl+U`)
+
+**Edit description**
+- Press `e` in the description panel to enter edit mode
+- Opens the description in `$EDITOR` (or built-in textarea as fallback)
+- On save, update the PR description via the GitHub API
+- Edit the PR title via `:set-title` command or a dedicated keybinding
+
+**Panel navigation**
+- Keybindings to jump between panels: file picker, diff view, description panel
+- Tab / Shift-Tab to cycle through panels, or direct jump keys (e.g. `1`/`2`/`3`)
+- Active panel indicated visually with a highlighted border
+- Each panel remembers its scroll position and cursor when switching away
 
 ### M5 — Graphite Stacked PRs (planned)
 
@@ -230,75 +259,18 @@ graph TD
     subgraph m6 [M6: Polish]
         C7[Word-level diff highlighting]
         C9[Status line: review state + checks]
+        C10[Custom color themes]
+        C11["Built-in themes (dark / light / high-contrast)"]
+        C12[User-defined color overrides]
     end
 ```
 
 - Word-level diff within changed lines (highlight the exact characters that changed)
 - Status line showing PR review state and CI check status
-
-### M7 — User Configuration (later)
-
-User-facing config file (`~/.config/gh-review/config.toml`) for personalizing the tool without recompiling.
-
-```mermaid
-graph TD
-    subgraph m7 [M7: User Configuration]
-        UC1["Config file loader (~/.config/gh-review/config.toml)"] --> UC2[Remappable keybindings]
-        UC1 --> UC3[Custom color themes]
-        UC1 --> UC4[Custom scripts via hooks]
-        UC3 --> UC5["Built-in themes (dark / light / high-contrast)"]
-        UC3 --> UC6["User-defined color overrides"]
-        UC4 --> UC7["on_submit / on_approve / on_open hooks"]
-    end
-```
-
-**Config file**
-- TOML config at `~/.config/gh-review/config.toml` (XDG-compliant)
-- CLI flags override config values
-- Sensible defaults when no config file exists
-
-**Remappable keybindings**
-- Every action (scroll, comment, submit, search, etc.) can be rebound
-- Config section `[keys]` with action-name = key-combo mapping
-- Support modifier combinations (Ctrl, Alt, Shift)
-- Validation on startup — warn on conflicts or unknown actions
-
-```toml
-[keys]
-scroll_down = "j"
-scroll_up = "k"
-submit_approve = "a"
-search_forward = "/"
-next_file = "n"
-```
-
-**Custom themes**
 - Built-in themes: dark (default), light, high-contrast
 - Select via config: `theme = "light"`
 - Full color override via `[theme.colors]` section for diff add/remove, comments, UI chrome, search highlights
 - Terminal capability detection (256-color, truecolor, basic)
-
-```toml
-theme = "dark"
-
-[theme.colors]
-add_bg = "#1a3a1a"
-remove_bg = "#3a1a1a"
-comment_fg = "#f0c674"
-search_match = "#ffcc00"
-```
-
-**Custom scripts**
-- Hook system: run user-defined shell commands on review lifecycle events
-- Supported hooks: `on_open`, `on_submit`, `on_approve`, `on_request_changes`, `on_quit`
-- Scripts receive context as environment variables (`GH_REVIEW_REPO`, `GH_REVIEW_PR`, `GH_REVIEW_ACTION`)
-- Async execution — scripts run in background, don't block the UI
-
-```toml
-[hooks]
-on_approve = "notify-send 'PR approved' '$GH_REVIEW_REPO#$GH_REVIEW_PR'"
-on_submit = "~/.config/gh-review/scripts/post-review.sh"
-```
 
 ### M8 — gh-dash-rs Integration (future)
 
@@ -342,11 +314,11 @@ Side-by-side chat panel for discussing code with Claude while reviewing a PR.
 | done | File navigation |
 | done | Inline commenting |
 | done | Pending review submit |
-| done | Expand context |
-| done | Existing comment display |
-| done | Help overlay |
-| done | Vim navigation |
-| done | Expand/collapse comments |
+| done | Expand context (with line numbers) |
+| done | Existing comment display (box-drawing thread rendering) |
+| done | Help overlay (`F1`) |
+| done | Vim navigation (smooth scroll animation) |
+| done | Expand/collapse comments (bulk expand/collapse all) |
 | done | Review confirmation popup |
 | done | Reply to comment threads |
 | done | `/` forward search in diff |
@@ -354,15 +326,27 @@ Side-by-side chat panel for discussing code with Claude while reviewing a PR.
 | done | `n` / `N` jump between matches |
 | done | Regex + smart-case matching |
 | done | File picker filter |
-| done | Syntax highlighting |
+| done | Syntax highlighting (tree-sitter) |
 | done | Resolve / unresolve comment threads |
-| done | Suggestion diffs (render + create + accept) |
+| done | Suggestion diffs (render as rich diffs, create, accept) |
 | done | Approve / request changes with body |
 | done | Unapprove with body |
 | done | Discard pending comment |
 | done | Edit pending comment |
-| done | Multi-line comments (visual select) |
+| done | Multi-line comments (visual select `v`/`V`) |
+| done | Command mode (`:` palette with tab-completion) |
+| done | Collapsible files (`zo`/`zc`) |
+| done | External editor support (`$EDITOR`) |
+| done | CLI aliases (PR URL / PR number) |
+| done | Debug mode (`--debug`) |
+| done | Dynamic keybinding hints |
+| done | Open PR in browser (`o`) |
+| done | Cross-platform support |
+| done | Remappable keybindings |
+| done | Custom actions |
 | **next** | Claude AI review |
+| planned | PR description panel (view + edit) |
+| planned | Panel navigation (Tab / direct jump) |
 | planned | Stack detection via gt CLI |
 | planned | Stack navigator panel |
 | planned | Jump between stack PRs |
@@ -370,9 +354,7 @@ Side-by-side chat panel for discussing code with Claude while reviewing a PR.
 | planned | Cumulative vs incremental toggle |
 | planned | Stack overview sidebar |
 | later | Word-level diff |
-| later | Remappable keybindings |
 | later | Custom themes |
-| later | Custom script hooks |
 | future | gh-dash-rs native view |
 | future | Stack-aware PR grouping |
 | future | AI chat panel (side-by-side with diff) |
