@@ -18,6 +18,10 @@ pub struct UserConfig {
     #[serde(default)]
     pub keys: HashMap<String, KeyOrKeys>,
     #[serde(default)]
+    pub aliases: HashMap<String, String>,
+    #[serde(default)]
+    pub disabled_commands: Vec<String>,
+    #[serde(default)]
     pub actions: Vec<RawAction>,
 }
 

@@ -58,10 +58,25 @@ impl CommandBar {
         let mut entries: Vec<CompletionEntry> = Vec::new();
 
         for cmd in Command::typable_commands() {
+            if keymap.is_disabled(cmd.name) {
+                continue;
+            }
             if self.input.is_empty() || cmd.name.starts_with(&self.input) {
                 entries.push(CompletionEntry {
                     name: cmd.name.to_string(),
                     doc: cmd.doc.to_string(),
+                });
+            }
+        }
+
+        for (alias, target) in keymap.alias_entries() {
+            if self.input.is_empty() || alias.starts_with(&self.input) {
+                let doc = Command::by_name(target)
+                    .map(|c| c.doc.to_string())
+                    .unwrap_or_default();
+                entries.push(CompletionEntry {
+                    name: alias.clone(),
+                    doc,
                 });
             }
         }

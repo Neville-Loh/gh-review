@@ -93,20 +93,27 @@ impl App {
     fn handle_command_bar_key(&mut self, code: KeyCode) {
         match code {
             KeyCode::Enter => {
+                let input = self.command_bar.input.trim().to_string();
                 if let Some(cmd) = self.command_bar.resolve() {
-                    self.command_bar.close();
-                    (cmd.execute)(self);
-                } else {
-                    let input = self.command_bar.input.trim().to_string();
-                    if let Some(action) = self.keymap.find_custom_action(&input).cloned() {
+                    if self.keymap.is_disabled(cmd.name) {
                         self.command_bar.close();
-                        self.run_custom_action(&action);
+                        self.status_msg = format!("Command disabled: {}", cmd.name);
+                        self.status_is_error = true;
                     } else {
                         self.command_bar.close();
-                        if !input.is_empty() {
-                            self.status_msg = format!("Unknown command: {input}");
-                            self.status_is_error = true;
-                        }
+                        (cmd.execute)(self);
+                    }
+                } else if let Some(cmd) = self.keymap.resolve_alias(&input) {
+                    self.command_bar.close();
+                    (cmd.execute)(self);
+                } else if let Some(action) = self.keymap.find_custom_action(&input).cloned() {
+                    self.command_bar.close();
+                    self.run_custom_action(&action);
+                } else {
+                    self.command_bar.close();
+                    if !input.is_empty() {
+                        self.status_msg = format!("Unknown command: {input}");
+                        self.status_is_error = true;
                     }
                 }
             }

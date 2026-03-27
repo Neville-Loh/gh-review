@@ -94,13 +94,21 @@ pub struct Keymap {
     labels: HashMap<&'static str, Vec<String>>,
     custom_actions: HashMap<KeyCombo, CustomAction>,
     all_custom_actions: Vec<CustomAction>,
+    aliases: HashMap<String, String>,
+    disabled_commands: Vec<String>,
 }
 
 impl Keymap {
     pub fn from_config(user_config: &UserConfig, resolved: ResolvedActions) -> Self {
         let mut defs = Self::default_binding_defs();
         Self::apply_overrides(&mut defs, user_config);
-        Self::build(defs, resolved)
+        Self::filter_disabled(&mut defs, &user_config.disabled_commands);
+        Self::build(
+            defs,
+            resolved,
+            user_config.aliases.clone(),
+            user_config.disabled_commands.clone(),
+        )
     }
 
     pub fn lookup(
@@ -245,6 +253,22 @@ impl Keymap {
     /// Find a custom action by name (for command bar resolution).
     pub fn find_custom_action(&self, name: &str) -> Option<&CustomAction> {
         self.all_custom_actions.iter().find(|a| a.name == name)
+    }
+
+    /// Resolve an alias to a built-in command name. Returns None if not an alias.
+    pub fn resolve_alias(&self, name: &str) -> Option<&'static Command> {
+        let target = self.aliases.get(name)?;
+        command::Command::by_name(target)
+    }
+
+    /// Get all alias names for command bar completion.
+    pub fn alias_entries(&self) -> impl Iterator<Item = (&String, &String)> {
+        self.aliases.iter()
+    }
+
+    /// Check if a command is disabled.
+    pub fn is_disabled(&self, name: &str) -> bool {
+        self.disabled_commands.iter().any(|d| d == name)
     }
 
     /// Get all named custom actions for command bar completion.
@@ -626,7 +650,14 @@ impl Keymap {
                 }
             }
             if !found {
-                if let Some(cmd) = command::Command::by_name(cmd_name) {
+                // Check built-in commands, then aliases
+                let resolved_cmd = command::Command::by_name(cmd_name).or_else(|| {
+                    config
+                        .aliases
+                        .get(cmd_name)
+                        .and_then(|target| command::Command::by_name(target))
+                });
+                if let Some(cmd) = resolved_cmd {
                     defs.push(BindingDef {
                         command: cmd,
                         keys: new_keys,
@@ -640,7 +671,19 @@ impl Keymap {
         }
     }
 
-    fn build(defs: Vec<BindingDef>, resolved: ResolvedActions) -> Self {
+    fn filter_disabled(defs: &mut Vec<BindingDef>, disabled: &[String]) {
+        if disabled.is_empty() {
+            return;
+        }
+        defs.retain(|def| !disabled.iter().any(|d| d == def.command.name));
+    }
+
+    fn build(
+        defs: Vec<BindingDef>,
+        resolved: ResolvedActions,
+        aliases: HashMap<String, String>,
+        disabled_commands: Vec<String>,
+    ) -> Self {
         let mut diff_view: HashMap<KeyCombo, Vec<Binding>> = HashMap::new();
         let mut file_picker: HashMap<KeyCombo, &'static Command> = HashMap::new();
         let mut pending: HashMap<char, HashMap<KeyCode, &'static Command>> = HashMap::new();
@@ -698,6 +741,8 @@ impl Keymap {
             labels,
             custom_actions: resolved.keyed,
             all_custom_actions: resolved.all,
+            aliases,
+            disabled_commands,
         }
     }
 }
@@ -710,6 +755,8 @@ impl Default for Keymap {
                 keyed: HashMap::new(),
                 all: Vec::new(),
             },
+            HashMap::new(),
+            Vec::new(),
         )
     }
 }
