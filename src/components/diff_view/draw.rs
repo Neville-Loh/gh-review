@@ -110,6 +110,21 @@ impl DiffView {
         let mut left_lines: Vec<Line> = Vec::new();
         let mut right_lines: Vec<Line> = Vec::new();
 
+        let visual = self.visual_range();
+        let apply_visual = |line: Line<'static>, gi: usize, selected: bool| -> Line<'static> {
+            if let Some((lo, hi)) = visual
+                && gi >= lo && gi <= hi && !selected
+            {
+                return Line::from(
+                    line.spans
+                        .into_iter()
+                        .map(|s| Span::styled(s.content, s.style.patch(Theme::visual_select())))
+                        .collect::<Vec<_>>(),
+                );
+            }
+            line
+        };
+
         let mut i = scroll;
         let mut last_line_kind: Option<crate::types::LineKind> = None;
 
@@ -177,9 +192,11 @@ impl DiffView {
 
                         if let Some(gi) = removed.get(k) {
                             left = self.search.highlight(left, *gi);
+                            left = apply_visual(left, *gi, sel_left);
                         }
                         if let Some(gi) = added.get(k) {
                             right = self.search.highlight(right, *gi);
+                            right = apply_visual(right, *gi, sel_right);
                         }
 
                         left_lines.push(left);
@@ -196,8 +213,10 @@ impl DiffView {
                     let selected = i == self.cursor;
                     let (l, r) =
                         render_sbs_row(&self.display_rows[i], &self.files, half_width, selected);
-                    left_lines.push(self.search.highlight(l, i));
-                    right_lines.push(self.search.highlight(r, i));
+                    let l = apply_visual(self.search.highlight(l, i), i, selected);
+                    let r = apply_visual(self.search.highlight(r, i), i, selected);
+                    left_lines.push(l);
+                    right_lines.push(r);
                     last_line_kind = Some(line.kind.clone());
                     i += 1;
                 }
