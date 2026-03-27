@@ -230,7 +230,11 @@ mod cmd {
 
     pub fn next_match_or_file(app: &mut App) {
         if app.diff_view.search.is_active() {
-            if let Some(c) = app.diff_view.search.next_match() {
+            let c = match app.search_bar.direction {
+                SearchDirection::Forward => app.diff_view.search.next_match(),
+                SearchDirection::Backward => app.diff_view.search.prev_match(),
+            };
+            if let Some(c) = c {
                 app.diff_view.cursor = c;
             }
             app.update_search_status();
@@ -244,7 +248,11 @@ mod cmd {
 
     pub fn prev_match_or_file(app: &mut App) {
         if app.diff_view.search.is_active() {
-            if let Some(c) = app.diff_view.search.prev_match() {
+            let c = match app.search_bar.direction {
+                SearchDirection::Forward => app.diff_view.search.prev_match(),
+                SearchDirection::Backward => app.diff_view.search.next_match(),
+            };
+            if let Some(c) = c {
                 app.diff_view.cursor = c;
             }
             app.update_search_status();
