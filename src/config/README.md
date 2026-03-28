@@ -75,7 +75,7 @@ Special keys and modifiers must start with an uppercase letter:
 Every action below can be remapped in the `[keys]` section.
 Only include the ones you want to change.
 
-### Navigation
+### Navigation (Diff Panel)
 
 | Action                | Default           | Description                       |
 |-----------------------|-------------------|-----------------------------------|
@@ -97,6 +97,8 @@ Only include the ones you want to change.
 | `prev_hunk`           | `[`, `{`          | Jump to previous hunk             |
 | `next_change`         | `)`               | Jump to next change               |
 | `prev_change`         | `(`               | Jump to previous change           |
+| `next_comment`        | `gc`              | Jump to next comment thread       |
+| `prev_comment`        | `gC`              | Jump to previous comment thread   |
 | `next_match_or_file`  | `n`               | Next search match or file         |
 | `prev_match_or_file`  | `N`               | Previous search match or file     |
 
@@ -145,6 +147,26 @@ Only include the ones you want to change.
 | `accept_suggestion`            | `y`        | Accept suggestion                 |
 | `expand_all_comments`          | —          | Expand all comment threads        |
 | `collapse_all_comments`        | —          | Collapse all comment threads      |
+
+### Description Panel
+
+| Action                | Default           | Description                       |
+|-----------------------|-------------------|-----------------------------------|
+| `description`         | —                 | Toggle PR description panel       |
+| `edit_description`    | `e`               | Edit PR title or body             |
+| `desc_scroll_down`    | `j`, `Down`       | Scroll down in description        |
+| `desc_scroll_up`      | `k`, `Up`         | Scroll up in description          |
+| `desc_page_down`      | `Ctrl-d`, `Ctrl-f`| Page down in description          |
+| `desc_page_up`        | `Ctrl-u`, `Ctrl-b`| Page up in description            |
+| `desc_goto_first`     | `gg`              | Go to top of description          |
+| `desc_goto_last`      | `G`               | Go to bottom of description       |
+| `desc_next_section`   | `]`, `}`          | Jump to body section              |
+| `desc_prev_section`   | `[`, `{`          | Jump to title section             |
+| `desc_close`          | `Esc`             | Close description panel           |
+
+Navigation keys like `j`/`k`/`gg`/`G` work in all panels but dispatch to
+panel-specific commands. For example, `j` calls `scroll_down` in the diff,
+`picker_down` in the file list, and `desc_scroll_down` in the description.
 
 ### File Picker
 

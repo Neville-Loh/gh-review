@@ -133,6 +133,9 @@ define_commands! {
     desc_prev_section,    "Description: prev section",     false;
     desc_close,           "Close description panel",       false;
 
+    // Quick review shortcuts
+    lgtm,                 "Approve with LGTM",             true;
+
     // Config
     config_path,          "Show config file path",         true;
 
