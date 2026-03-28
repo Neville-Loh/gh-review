@@ -203,4 +203,34 @@ impl DiffView {
     pub fn center_cursor(&mut self, visible_height: usize) {
         self.scroll_offset = self.cursor.saturating_sub(visible_height / 2);
     }
+
+    /// Jump to the next comment thread header (root, not reply).
+    pub fn next_comment(&mut self) {
+        let start = self.cursor + 1;
+        for i in start..self.display_rows.len() {
+            if matches!(
+                self.display_rows[i],
+                DisplayRow::CommentHeader { is_reply: false, .. }
+            ) {
+                self.cursor = i;
+                return;
+            }
+        }
+    }
+
+    /// Jump to the previous comment thread header (root, not reply).
+    pub fn prev_comment(&mut self) {
+        if self.cursor == 0 {
+            return;
+        }
+        for i in (0..self.cursor).rev() {
+            if matches!(
+                self.display_rows[i],
+                DisplayRow::CommentHeader { is_reply: false, .. }
+            ) {
+                self.cursor = i;
+                return;
+            }
+        }
+    }
 }

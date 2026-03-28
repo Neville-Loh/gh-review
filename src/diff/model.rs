@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use ratatui::text::{Line, Span};
 use unicode_width::UnicodeWidthStr;
 
+use super::layout;
+use super::wrap::wrap_spans;
 use crate::types::{DiffFile, DiffLine, ExistingComment, LineKind, ReviewComment, Side, ThreadInfo};
 
 #[derive(Debug, Clone)]
@@ -80,33 +82,14 @@ fn render_markdown_to_lines(body: &str) -> Vec<Line<'static>> {
         .collect()
 }
 
-const LINE_NUM_WIDTH: usize = 5;
-const GUTTER_WIDTH: usize = LINE_NUM_WIDTH * 2 + 3;
-
-fn wrap_line(text: &str, max_width: usize) -> Vec<String> {
-    if max_width == 0 {
-        return vec![text.to_string()];
+fn blank_body_row(is_resolved: bool, is_pending: bool) -> DisplayRow {
+    DisplayRow::CommentBodyLine {
+        line: Line::default(),
+        is_reply: false,
+        is_resolved,
+        is_pending,
+        is_suggestion: false,
     }
-    let mut lines = Vec::new();
-    let mut current = String::new();
-    let mut current_w = 0;
-    for word in text.split_inclusive(' ') {
-        let ww = word.width();
-        if current_w + ww > max_width && !current.is_empty() {
-            lines.push(current);
-            current = String::new();
-            current_w = 0;
-        }
-        current.push_str(word);
-        current_w += ww;
-    }
-    if !current.is_empty() {
-        lines.push(current);
-    }
-    if lines.is_empty() {
-        lines.push(String::new());
-    }
-    lines
 }
 
 fn wrap_body_lines(
@@ -118,8 +101,8 @@ fn wrap_body_lines(
 ) -> Vec<DisplayRow> {
     let mut rows = Vec::new();
     for ml in md_lines {
-        let text: String = ml.spans.iter().map(|s| s.content.as_ref()).collect();
-        if text.width() <= max_width {
+        let total_width: usize = ml.spans.iter().map(|s| s.content.width()).sum();
+        if total_width <= max_width {
             rows.push(DisplayRow::CommentBodyLine {
                 line: ml,
                 is_reply,
@@ -128,9 +111,9 @@ fn wrap_body_lines(
                 is_suggestion: false,
             });
         } else {
-            for wrapped in wrap_line(&text, max_width) {
+            for wrapped_line in wrap_spans(&ml.spans, max_width) {
                 rows.push(DisplayRow::CommentBodyLine {
-                    line: Line::from(wrapped),
+                    line: wrapped_line,
                     is_reply,
                     is_resolved,
                     is_pending,
@@ -154,7 +137,7 @@ pub fn build_display_rows(
     collapsed_files: &std::collections::HashSet<usize>,
 ) -> Vec<DisplayRow> {
     let mut rows = Vec::new();
-    let body_max_width = wrap_width.saturating_sub(GUTTER_WIDTH + 4);
+    let body_max_width = layout::comment_body_width(wrap_width);
 
     for (file_idx, file) in files.iter().enumerate() {
         let collapsed = collapsed_files.contains(&file_idx);
@@ -238,6 +221,8 @@ pub fn build_display_rows(
                         });
 
                         if is_expanded {
+                            rows.push(blank_body_row(is_resolved, false));
+
                             let sug_text = suggestion::extract(&root.body);
                             let body_text = if sug_text.is_some() {
                                 suggestion::strip_block(&root.body)
@@ -260,6 +245,8 @@ pub fn build_display_rows(
                             }
 
                             for reply in thread_comments.iter().skip(1) {
+                                rows.push(blank_body_row(is_resolved, false));
+
                                 rows.push(DisplayRow::CommentHeader {
                                     author: reply.user.login.clone(),
                                     is_pending: false,
@@ -278,6 +265,7 @@ pub fn build_display_rows(
                                 rows.extend(wrap_body_lines(reply_lines, body_max_width, true, is_resolved, false));
                             }
 
+                            rows.push(blank_body_row(is_resolved, false));
                             rows.push(DisplayRow::CommentFooter {
                                 is_reply: false,
                                 is_resolved,
@@ -307,8 +295,30 @@ pub fn build_display_rows(
                         });
 
                         if is_expanded {
-                            let md_lines = render_markdown_to_lines(&pc.body);
-                            rows.extend(wrap_body_lines(md_lines, body_max_width, false, false, true));
+                            rows.push(blank_body_row(false, true));
+
+                            let sug_text = suggestion::extract(&pc.body);
+                            let body_text = if sug_text.is_some() {
+                                suggestion::strip_block(&pc.body)
+                            } else {
+                                pc.body.clone()
+                            };
+
+                            if !body_text.trim().is_empty() {
+                                let md_lines = render_markdown_to_lines(&body_text);
+                                rows.extend(wrap_body_lines(md_lines, body_max_width, false, false, true));
+                            }
+
+                            if let Some(ref suggested) = sug_text {
+                                let original_lines = suggestion::collect_original_lines(
+                                    &hunk.lines, line, lineno, None,
+                                );
+                                rows.extend(suggestion::build_rows(
+                                    &file.path, &original_lines, suggested, false,
+                                ));
+                            }
+
+                            rows.push(blank_body_row(false, true));
                             rows.push(DisplayRow::CommentFooter {
                                 is_reply: false,
                                 is_resolved: false,

@@ -200,6 +200,7 @@ impl Keymap {
             (all("next_hunk"), "Next hunk"),
             (all("prev_hunk"), "Previous hunk"),
             (format!("{} / {}", one("next_change"), one("prev_change")), "Next / previous change"),
+            (format!("{} / {}", one("next_comment"), one("prev_comment")), "Next / previous comment"),
             (String::new(), ""),
             // Search
             (one("search_forward"), "Search forward in diff"),
@@ -632,6 +633,25 @@ impl Keymap {
                 keys: vec![Pending {
                     prefix: 'z',
                     key: 'c',
+                }],
+                scope: DiffOnly,
+                context: None,
+            },
+            // ── Comment navigation ─────────────────────────────────────
+            BindingDef {
+                command: &command::next_comment,
+                keys: vec![Pending {
+                    prefix: 'g',
+                    key: 'c',
+                }],
+                scope: DiffOnly,
+                context: None,
+            },
+            BindingDef {
+                command: &command::prev_comment,
+                keys: vec![Pending {
+                    prefix: 'g',
+                    key: 'C',
                 }],
                 scope: DiffOnly,
                 context: None,

@@ -171,41 +171,41 @@ impl Theme {
             .add_modifier(Modifier::DIM)
     }
 
-    // Comment thread backgrounds and accents
+    // Comment thread colors — light tinted backgrounds for clear card visibility.
     pub fn comment_bg() -> Color {
-        Color::Rgb(20, 22, 40)
+        Color::Rgb(30, 35, 55)
     }
 
     pub fn comment_accent() -> Color {
-        Color::Rgb(80, 120, 220)
+        Color::Blue
     }
 
     pub fn comment_fg() -> Color {
-        Color::Rgb(170, 190, 230)
+        Color::Rgb(180, 200, 240)
     }
 
     pub fn resolved_bg() -> Color {
-        Color::Rgb(18, 25, 20)
+        Color::Rgb(28, 40, 32)
     }
 
     pub fn resolved_accent() -> Color {
-        Color::Rgb(60, 120, 60)
+        Color::Green
     }
 
     pub fn resolved_fg() -> Color {
-        Color::Rgb(100, 130, 100)
+        Color::Rgb(140, 180, 150)
     }
 
     pub fn pending_bg() -> Color {
-        Color::Rgb(35, 28, 15)
+        Color::Rgb(45, 38, 25)
     }
 
     pub fn pending_accent() -> Color {
-        Color::Rgb(200, 150, 50)
+        Color::Yellow
     }
 
     pub fn pending_fg() -> Color {
-        Color::Rgb(200, 170, 100)
+        Color::Rgb(230, 200, 130)
     }
 
     pub fn suggestion_added() -> Style {
