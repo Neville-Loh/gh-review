@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-03-28
+
+### Added
+
+- **User configuration** — TOML config file at `~/.config/gh-review/config.toml` with all settings optional and sensible defaults; run `:config-path` to see the resolved path (#41)
+- **Remappable keybindings** — every action can be rebound via `[keys]` section; supports single keys, modifier combos (`Ctrl-d`), pending sequences (`gg`, `zo`), and multiple bindings per action (`["j", "Down"]`); unbind with `"no_op"` (#41)
+- **Custom actions** — user-defined shell commands via `[[actions]]` with template variables (`{PR_NUMBER}`, `{REPO}`, `{URL}`, etc.); bindable to hotkeys and invocable from the command bar (#42)
+- **Command aliases** — define short names for built-in commands in `[aliases]` (e.g. `lgtm = "approve"`); usable in `[keys]` and the `:` command bar (#44)
+- **Disable commands** — remove unwanted commands from both the keymap and command bar via `disabled_commands` (#44)
+- **PR description panel** — dedicated panel showing the PR title and description with markdown rendering; toggle with `:description` (#53)
+- **Panel navigation** — Tab / Shift-Tab to cycle between file picker, diff view, and description panel; active panel indicated with highlighted border (#46)
+- **Status line** — transient message bar with info/success/error states and auto-expiry after 2 seconds (#50)
+- **`:q!` command** — force-quit alias (#49)
+
+### Changed
+
+- **Comment block rendering** — migrated comment threads to a dedicated `CommentBlock` widget with rounded borders, color-coded backgrounds, word-wrapping, and proper width constraints; replaces the previous inline row-based rendering (#52)
+- **Unresolved comments default open** — unresolved comment threads now expand automatically on load instead of starting collapsed (#45)
+- **Architecture** — extracted `command_handlers.rs` (499 lines) from `command.rs` and `comment_block.rs` (297 lines) from `diff_view/draw.rs` for better separation of concerns (#52)
+
+### Fixed
+
+- **Visual select in side-by-side view** — visual line selection now works correctly in side-by-side diff mode (#47)
+- **Top-level comments visible** — PR-level review comments (not attached to a specific line) are now displayed in the diff view (#54)
+
 ## [0.1.3] - 2026-03-27
 
 ### Added
