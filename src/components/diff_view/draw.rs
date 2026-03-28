@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Direction, Layout, Rect},
@@ -5,11 +7,11 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Widget},
 };
 
+use super::DiffView;
+use super::comment_block;
 use crate::diff::renderer::{DisplayRow, render_sbs_row, render_unified_row};
 use crate::theme::Theme;
 use crate::types::DiffMode;
-
-use super::DiffView;
 
 impl DiffView {
     pub fn draw(&self, area: Rect, buf: &mut Buffer, focused: bool) {
@@ -67,33 +69,43 @@ impl DiffView {
 
     fn draw_unified(&self, area: Rect, buf: &mut Buffer, scroll: usize, visible_height: usize) {
         let end = (scroll + visible_height).min(self.display_rows.len());
-        let visible = &self.display_rows[scroll..end];
         let visual = self.visual_range();
 
-        let lines: Vec<Line> = visible
+        let blocks = comment_block::find_comment_blocks(&self.display_rows, scroll, end);
+        let comment_rows: HashSet<usize> = blocks
             .iter()
-            .enumerate()
-            .map(|(i, row)| {
-                let global_idx = scroll + i;
-                let selected = global_idx == self.cursor;
-                let mut line = render_unified_row(row, &self.files, area.width, selected);
-                line = self.search.highlight(line, global_idx);
-                if let Some((lo, hi)) = visual
-                    && global_idx >= lo && global_idx <= hi && !selected
-                {
-                    line = Line::from(
-                        line.spans
-                            .into_iter()
-                            .map(|s| Span::styled(s.content, s.style.patch(Theme::visual_select())))
-                            .collect::<Vec<_>>(),
-                    );
-                }
-                line
-            })
+            .flat_map(|b| b.header_idx..=b.footer_idx)
             .collect();
 
-        let paragraph = Paragraph::new(lines);
-        Widget::render(paragraph, area, buf);
+        // Pass 1: render non-comment rows directly to buffer
+        for screen_y in 0..(end - scroll) {
+            let global_idx = scroll + screen_y;
+            if comment_rows.contains(&global_idx) {
+                continue;
+            }
+
+            let selected = global_idx == self.cursor;
+            let mut line =
+                render_unified_row(&self.display_rows[global_idx], &self.files, area.width, selected);
+            line = self.search.highlight(line, global_idx);
+            if let Some((lo, hi)) = visual
+                && global_idx >= lo && global_idx <= hi && !selected
+            {
+                line = Line::from(
+                    line.spans
+                        .into_iter()
+                        .map(|s| Span::styled(s.content, s.style.patch(Theme::visual_select())))
+                        .collect::<Vec<_>>(),
+                );
+            }
+
+            buf.set_line(area.x, area.y + screen_y as u16, &line, area.width);
+        }
+
+        // Pass 2: render comment blocks using Block widgets
+        for cb in &blocks {
+            cb.render_unified(area, buf, scroll, end, self.cursor);
+        }
     }
 
     fn draw_sbs(&self, area: Rect, buf: &mut Buffer, scroll: usize, visible_height: usize) {
@@ -107,8 +119,22 @@ impl DiffView {
             ])
             .split(area);
 
+        let blocks = comment_block::find_comment_blocks(&self.display_rows, scroll, scroll + visible_height);
+        let comment_rows: HashSet<usize> = blocks
+            .iter()
+            .flat_map(|b| b.header_idx..=b.footer_idx)
+            .collect();
+
         let mut left_lines: Vec<Line> = Vec::new();
         let mut right_lines: Vec<Line> = Vec::new();
+
+        // Track which screen line and column each comment block maps to in SBS
+        struct SbsBlockPlacement {
+            screen_y: usize,
+            right_column: bool,
+            block_idx: usize,
+        }
+        let mut placements: Vec<SbsBlockPlacement> = Vec::new();
 
         let visual = self.visual_range();
         let apply_visual = |line: Line<'static>, gi: usize, selected: bool| -> Line<'static> {
@@ -221,32 +247,40 @@ impl DiffView {
                     i += 1;
                 }
                 row => {
-                    let selected = i == self.cursor;
-                    let is_comment = matches!(
-                        row,
-                        DisplayRow::CommentHeader { .. }
-                            | DisplayRow::CommentBodyLine { .. }
-                            | DisplayRow::CommentFooter { .. }
-                    );
-                    let w = if is_comment { half_width } else { area.width };
-                    let unified =
-                        render_unified_row(&self.display_rows[i], &self.files, w, selected);
-                    let highlighted = self.search.highlight(unified, i);
+                    let is_comment = comment_rows.contains(&i);
 
-                    if is_comment
-                        && matches!(
+                    if is_comment {
+                        let right_col = matches!(
                             last_line_kind,
                             Some(crate::types::LineKind::Added)
                                 | Some(crate::types::LineKind::Context)
-                        )
-                    {
+                        );
+                        if let Some(bi) = blocks.iter().position(|b| b.header_idx == i) {
+                            placements.push(SbsBlockPlacement {
+                                screen_y: left_lines.len(),
+                                right_column: right_col,
+                                block_idx: bi,
+                            });
+                        }
                         left_lines.push(Line::default());
-                        right_lines.push(highlighted);
+                        right_lines.push(Line::default());
+                        i += 1;
                     } else {
+                        let selected = i == self.cursor;
+                        let unified = render_unified_row(
+                            &self.display_rows[i],
+                            &self.files,
+                            area.width,
+                            selected,
+                        );
+                        let highlighted = self.search.highlight(unified, i);
                         left_lines.push(highlighted);
                         right_lines.push(Line::default());
+                        if let DisplayRow::DiffLine { line, .. } = row {
+                            last_line_kind = Some(line.kind.clone());
+                        }
+                        i += 1;
                     }
-                    i += 1;
                 }
             }
         }
@@ -264,6 +298,31 @@ impl DiffView {
         }
 
         Widget::render(right_para, layout[2], buf);
+
+        // Pass 2: render comment Block widgets in the appropriate SBS column
+        for placement in &placements {
+            let col_area = if placement.right_column {
+                layout[2]
+            } else {
+                layout[0]
+            };
+            let cb = &blocks[placement.block_idx];
+            let num_rows = cb.footer_idx - cb.header_idx + 1;
+            let cursor_screen_y = if self.cursor >= cb.header_idx
+                && self.cursor <= cb.footer_idx
+            {
+                Some(placement.screen_y + (self.cursor - cb.header_idx))
+            } else {
+                None
+            };
+            cb.render_sbs(
+                col_area,
+                buf,
+                placement.screen_y,
+                num_rows,
+                cursor_screen_y,
+            );
+        }
     }
 
     pub fn ensure_visible(&mut self, visible_height: usize) {

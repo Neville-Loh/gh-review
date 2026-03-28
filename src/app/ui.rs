@@ -7,6 +7,7 @@ use ratatui::{
 
 use crate::components::help::HelpOverlay;
 use crate::components::review_bar::ReviewBar;
+use crate::types::DiffMode;
 
 use super::{App, Focus};
 
@@ -42,7 +43,11 @@ impl App {
 
         let diff_height = content_layout[1].height.saturating_sub(2) as usize;
         self.visible_height = diff_height;
-        let new_wrap_width = content_layout[1].width.saturating_sub(2) as usize;
+        let panel_inner_width = content_layout[1].width.saturating_sub(2) as usize;
+        let new_wrap_width = match self.diff_view.mode {
+            DiffMode::SideBySide => panel_inner_width / 2,
+            DiffMode::Unified => panel_inner_width,
+        };
         if new_wrap_width != self.diff_view.wrap_width {
             self.diff_view.wrap_width = new_wrap_width;
             self.rebuild_display();
@@ -71,6 +76,7 @@ impl App {
             self.search_bar
                 .draw(main_layout[3], frame.buffer_mut(), curr, total);
         } else {
+            self.status.tick();
             ReviewBar::draw(
                 main_layout[3],
                 frame.buffer_mut(),

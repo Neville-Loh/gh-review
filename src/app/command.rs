@@ -76,6 +76,8 @@ define_commands! {
     prev_hunk,            "Jump to previous hunk",         false;
     next_change,          "Jump to next change",           false;
     prev_change,          "Jump to previous change",       false;
+    next_comment,         "Jump to next comment thread",   false;
+    prev_comment,         "Jump to previous comment thread", false;
     next_match_or_file,   "Next search match or file",     false;
     prev_match_or_file,   "Previous search match or file", false;
 

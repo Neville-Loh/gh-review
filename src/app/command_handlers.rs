@@ -108,6 +108,14 @@ pub fn prev_change(app: &mut App) {
     app.diff_view.prev_change();
 }
 
+pub fn next_comment(app: &mut App) {
+    app.diff_view.next_comment();
+}
+
+pub fn prev_comment(app: &mut App) {
+    app.diff_view.prev_comment();
+}
+
 pub fn next_match_or_file(app: &mut App) {
     if app.diff_view.search.is_active() {
         let c = match app.search_bar.direction {
@@ -172,6 +180,7 @@ pub fn prev_panel(app: &mut App) {
 
 pub fn toggle_view(app: &mut App) {
     app.diff_view.toggle_mode();
+    app.rebuild_display();
 }
 
 pub fn fold_toggle(app: &mut App) {
@@ -193,7 +202,11 @@ pub fn fold_close(app: &mut App) {
 }
 
 pub fn toggle_comment(app: &mut App) {
-    if app.diff_view.toggle_comment_expand() || app.diff_view.fold_toggle() {
+    let on_comment = matches!(
+        app.diff_view.current_context(),
+        crate::types::RowContext::Comment | crate::types::RowContext::Suggestion
+    );
+    if app.diff_view.toggle_comment_expand() || (!on_comment && app.diff_view.fold_toggle()) {
         app.rebuild_display();
     }
 }

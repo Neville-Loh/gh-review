@@ -1,3 +1,4 @@
+mod comment_block;
 mod draw;
 mod navigation;
 
@@ -111,37 +112,66 @@ impl DiffView {
         None
     }
 
-    /// Toggle expand/collapse for the thread at cursor. Returns true if toggled.
+    /// Toggle expand/collapse for the thread at cursor. Works from any row
+    /// within the thread (header, body, or footer) by walking back to the
+    /// root header.
     pub fn toggle_comment_expand(&mut self) -> bool {
-        let row = self.display_rows.get(self.cursor);
-        match row {
-            Some(DisplayRow::CommentHeader {
+        let header_idx = match self.display_rows.get(self.cursor) {
+            Some(DisplayRow::CommentHeader { is_reply: false, .. }) => Some(self.cursor),
+            Some(DisplayRow::CommentHeader { is_reply: true, .. })
+            | Some(DisplayRow::CommentBodyLine { .. })
+            | Some(DisplayRow::CommentFooter { .. }) => self.find_root_header(self.cursor),
+            _ => None,
+        };
+
+        let Some(idx) = header_idx else {
+            return false;
+        };
+
+        match &self.display_rows[idx] {
+            DisplayRow::CommentHeader {
                 thread_root_id: Some(root_id),
                 ..
-            }) => {
+            } => {
                 let id = *root_id;
                 if self.expanded_threads.contains(&id) {
                     self.expanded_threads.remove(&id);
                 } else {
                     self.expanded_threads.insert(id);
                 }
+                self.cursor = idx;
                 true
             }
-            Some(DisplayRow::CommentHeader {
+            DisplayRow::CommentHeader {
                 is_pending: true,
-                pending_idx: Some(idx),
+                pending_idx: Some(pi),
                 ..
-            }) => {
-                let id = *idx;
+            } => {
+                let id = *pi;
                 if self.expanded_pending.contains(&id) {
                     self.expanded_pending.remove(&id);
                 } else {
                     self.expanded_pending.insert(id);
                 }
+                self.cursor = idx;
                 true
             }
             _ => false,
         }
+    }
+
+    /// Walk backwards from `from` to find the root (non-reply) CommentHeader.
+    fn find_root_header(&self, from: usize) -> Option<usize> {
+        for i in (0..=from).rev() {
+            match &self.display_rows[i] {
+                DisplayRow::CommentHeader { is_reply: false, .. } => return Some(i),
+                DisplayRow::CommentHeader { is_reply: true, .. }
+                | DisplayRow::CommentBodyLine { .. }
+                | DisplayRow::CommentFooter { .. } => continue,
+                _ => return None,
+            }
+        }
+        None
     }
 
     /// If cursor is on a pending comment header, return its index in pending_comments.
@@ -201,7 +231,8 @@ impl DiffView {
                         is_resolved: *is_resolved,
                     });
                 }
-                return None;
+                // Reply header (no thread_node_id) -- keep walking to root
+                continue;
             }
             match self.display_rows.get(i) {
                 Some(DisplayRow::CommentBodyLine { .. }) | Some(DisplayRow::CommentFooter { .. }) => continue,
