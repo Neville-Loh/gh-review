@@ -492,3 +492,7 @@ pub fn desc_prev_section(app: &mut App) {
 pub fn desc_close(app: &mut App) {
     app.focus = super::Focus::DiffView;
 }
+
+pub fn lgtm(app: &mut App) {
+    app.submit_review(ReviewEvent::Approve, "LGTM, ship it".to_string());
+}

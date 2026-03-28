@@ -76,19 +76,30 @@ gh-dash (browse PRs)
 
 | Key | Action |
 |-----|--------|
-| `j` / `k` / `↑` / `↓` | Scroll line |
+| `j` / `k` / `↑` / `↓` | Scroll line (works in all panels) |
 | `gg` / `G` | Go to first / last line |
 | `Ctrl+D` / `Ctrl+U` | Half page down / up |
 | `Ctrl+F` / `Ctrl+B` | Full page down / up |
 | `H` / `M` / `L` | Cursor to screen top / middle / bottom |
-| `]` / `}` | Next hunk |
-| `[` / `{` | Previous hunk |
+| `]` / `}` | Next hunk (diff) / next section (description) |
+| `[` / `{` | Previous hunk (diff) / previous section (description) |
 | `)` / `(` | Next / previous change |
+| `gc` / `gC` | Next / previous comment thread |
 | `n` / `N` | Next / previous file (or search match when search active) |
 | `zo` / `zc` | Expand / collapse file at cursor |
 | `Enter` | Toggle comment expand or file fold |
 | `zz` / `zt` / `zb` | Center / top / bottom cursor in viewport |
-| `Tab` | Switch focus between file list and diff |
+
+### Panels
+
+| Key | Action |
+|-----|--------|
+| `h` / `←` | Focus previous panel |
+| `l` / `→` | Focus next panel |
+| `Tab` | Cycle panel focus |
+| `Esc` | Close description panel (when focused) |
+
+Panels: **File List** ↔ **Diff** ↔ **Description** (when open).
 
 ### Search
 
@@ -127,35 +138,12 @@ In the file picker, `/` opens a fuzzy file filter instead.
 
 Comments are batched into a pending review and submitted together when you press `a` or `s`. These open a quick confirm popup (Enter / Esc). For request changes or review submissions with a body message, use the `:` command mode (see below).
 
-### Command Mode
-
-Press `:` to open the command prompt. Type a command name and press Enter to execute. Tab cycles through completions.
-
-| Command | Action |
-|---------|--------|
-| `:approve` | Approve (quick confirm) |
-| `:approve_with_comment` | Approve with review body |
-| `:request_changes` | Request changes (quick confirm) |
-| `:request_changes_with_comment` | Request changes with body |
-| `:submit` | Submit comment-only (quick confirm) |
-| `:comment` | Review comment with body |
-| `:unapprove` | Dismiss own approval |
-| `:suggest` | Suggest change on current line |
-| `:expand` | Expand context |
-| `:discard` | Discard pending comment |
-| `:resolve` | Resolve / unresolve thread |
-| `:accept_suggestion` | Accept suggestion |
-| `:toggle_view` | Toggle unified / side-by-side |
-| `:help` | Toggle help overlay |
-| `:quit` (or `:q`) | Quit |
-| `:open_browser` | Open PR in browser |
-
 ### Other
 
 | Key | Action |
 |-----|--------|
 | `:` | Open command prompt |
-| `o` | Open PR in browser |
+| `o` | Open PR in browser (all panels) |
 | `!` | Show help overlay |
 | `q` | Quit |
 
