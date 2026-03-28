@@ -331,5 +331,84 @@ pub fn build_display_rows(
         }
     }
 
+    // Collect file-level comments (line: None) -- not attached to any diff line.
+    let orphan_comments: Vec<&ExistingComment> = existing_comments
+        .iter()
+        .filter(|c| c.line.is_none())
+        .collect();
+
+    if !orphan_comments.is_empty() {
+        let mut threads: std::collections::BTreeMap<u64, Vec<&ExistingComment>> =
+            std::collections::BTreeMap::new();
+        for ec in &orphan_comments {
+            let root_id = ec.in_reply_to_id.unwrap_or(ec.id);
+            threads.entry(root_id).or_default().push(ec);
+        }
+
+        for (root_id, thread_comments) in &threads {
+            let root = thread_comments[0];
+            let reply_count = thread_comments.len().saturating_sub(1);
+            let thread_info = thread_map.get(root_id);
+            let thread_node_id = thread_info.map(|t| t.thread_node_id.clone());
+            let is_resolved = thread_info.map(|t| t.is_resolved).unwrap_or(false);
+            let default_open = !is_resolved;
+            let is_expanded = if expanded_threads.contains(root_id) {
+                !default_open
+            } else {
+                default_open
+            };
+            let preview = root.body.lines().next().unwrap_or("").to_string();
+
+            rows.push(DisplayRow::CommentHeader {
+                author: root.user.login.clone(),
+                is_pending: false,
+                github_id: Some(root.id),
+                pending_idx: None,
+                thread_root_id: Some(*root_id),
+                thread_node_id,
+                is_resolved,
+                expanded: is_expanded,
+                reply_count,
+                body_preview: preview,
+                is_reply: false,
+            });
+
+            if is_expanded {
+                rows.push(blank_body_row(is_resolved, false));
+
+                let md_lines = render_markdown_to_lines(&root.body);
+                rows.extend(wrap_body_lines(md_lines, body_max_width, false, is_resolved, false));
+
+                for reply in thread_comments.iter().skip(1) {
+                    rows.push(blank_body_row(is_resolved, false));
+
+                    rows.push(DisplayRow::CommentHeader {
+                        author: reply.user.login.clone(),
+                        is_pending: false,
+                        github_id: Some(reply.id),
+                        pending_idx: None,
+                        thread_root_id: Some(*root_id),
+                        thread_node_id: None,
+                        is_resolved,
+                        expanded: true,
+                        reply_count: 0,
+                        body_preview: String::new(),
+                        is_reply: true,
+                    });
+
+                    let reply_lines = render_markdown_to_lines(&reply.body);
+                    rows.extend(wrap_body_lines(reply_lines, body_max_width, true, is_resolved, false));
+                }
+
+                rows.push(blank_body_row(is_resolved, false));
+                rows.push(DisplayRow::CommentFooter {
+                    is_reply: false,
+                    is_resolved,
+                    is_pending: false,
+                });
+            }
+        }
+    }
+
     rows
 }
