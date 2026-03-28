@@ -115,7 +115,7 @@ define_commands! {
     accept_suggestion,    "Accept suggestion",             true;
 
     // Review -- keybinding only
-    comment_on_line,      "Comment on current line",       false;
+    comment_on_line,      "Comment on current line",       true;
     visual,               "Visual select mode",            false;
 
     // Panels

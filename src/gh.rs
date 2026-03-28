@@ -3,8 +3,10 @@ use tokio::process::Command;
 
 use std::collections::HashMap;
 
+use serde::Deserialize;
+
 use crate::types::{
-    DiffFile, ExistingComment, FileStatus, GhFile, PrMetadata, PrReview, ReviewComment,
+    DiffFile, ExistingComment, FileStatus, GhFile, PrMetadata, PrReview, PrUser, ReviewComment,
     ReviewEvent, ThreadInfo,
 };
 
@@ -111,7 +113,36 @@ pub async fn fetch_pr_files(repo: &str, pr_number: u64) -> Result<Vec<DiffFile>>
 pub async fn fetch_review_comments(repo: &str, pr_number: u64) -> Result<Vec<ExistingComment>> {
     let url = format!("repos/{repo}/pulls/{pr_number}/comments");
     let output = run_gh(&["api", &url, "--paginate"]).await?;
-    serde_json::from_str(&output).context("Failed to parse review comments")
+    let mut comments: Vec<ExistingComment> =
+        serde_json::from_str(&output).context("Failed to parse review comments")?;
+
+    // Also fetch top-level conversation comments (issues endpoint)
+    let issue_url = format!("repos/{repo}/issues/{pr_number}/comments");
+    if let Ok(issue_output) = run_gh(&["api", &issue_url, "--paginate"]).await
+        && let Ok(issue_comments) = serde_json::from_str::<Vec<IssueComment>>(&issue_output)
+    {
+        comments.extend(issue_comments.into_iter().map(|ic| ExistingComment {
+            id: ic.id,
+            path: String::new(),
+            line: None,
+            side: None,
+            start_line: None,
+            body: ic.body.unwrap_or_default(),
+            user: ic.user,
+            created_at: ic.created_at,
+            in_reply_to_id: None,
+        }));
+    }
+
+    Ok(comments)
+}
+
+#[derive(Debug, Deserialize)]
+struct IssueComment {
+    id: u64,
+    body: Option<String>,
+    user: PrUser,
+    created_at: String,
 }
 
 pub async fn fetch_file_content(repo: &str, path: &str, git_ref: &str) -> Result<String> {
