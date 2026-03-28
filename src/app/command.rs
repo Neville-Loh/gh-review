@@ -118,6 +118,21 @@ define_commands! {
     comment_on_line,      "Comment on current line",       false;
     visual,               "Visual select mode",            false;
 
+    // Panels
+    description,          "Toggle PR description panel",   true;
+    edit_description,     "Edit PR title or body",         true;
+
+    // Description panel navigation
+    desc_scroll_down,     "Description: scroll down",      false;
+    desc_scroll_up,       "Description: scroll up",        false;
+    desc_page_down,       "Description: page down",        false;
+    desc_page_up,         "Description: page up",          false;
+    desc_goto_first,      "Description: go to top",        false;
+    desc_goto_last,       "Description: go to bottom",     false;
+    desc_next_section,    "Description: next section",     false;
+    desc_prev_section,    "Description: prev section",     false;
+    desc_close,           "Close description panel",       false;
+
     // Config
     config_path,          "Show config file path",         true;
 

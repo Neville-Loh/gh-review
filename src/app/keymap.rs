@@ -1,13 +1,19 @@
+//! Keymap: maps key presses to commands per panel (Diff, Picker, Description).
+//!
+//! Each key binding specifies which panels it applies to and which command to
+//! run in each. `Global` is sugar for "same command in all panels". The binding
+//! table in [`Keymap::default_binding_defs`] is the single source of truth for
+//! default hotkeys.
+
 use std::collections::HashMap;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
+use super::command::{self, Command};
+use super::custom_action::{CustomAction, ResolvedActions};
 use super::Focus;
 use crate::config::{KeyBinding, UserConfig, format_key_binding, parse_key_string};
 use crate::types::RowContext;
-
-use super::command::{self, Command};
-use super::custom_action::{CustomAction, ResolvedActions};
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 pub struct KeyCombo {
@@ -62,18 +68,91 @@ struct Binding {
     context: Option<RowContext>,
 }
 
-#[derive(Clone, Copy)]
-enum Scope {
-    Global,
-    DiffOnly,
-    PickerOnly,
+/// Which UI panel a binding targets.
+#[derive(Clone, Copy, PartialEq)]
+enum Panel {
+    Diff,
+    Picker,
+    Description,
 }
 
-struct BindingDef {
+const ALL_PANELS: &[Panel] = &[Panel::Diff, Panel::Picker, Panel::Description];
+
+/// Pairs a [`Panel`] with the [`Command`] to run when the key fires there.
+#[derive(Clone, Copy)]
+struct ScopeBinding {
+    panel: Panel,
     command: &'static Command,
+}
+
+impl ScopeBinding {
+    fn on(panel: Panel, command: &'static Command) -> Self {
+        Self { panel, command }
+    }
+}
+
+/// A key binding definition: one or more keys, one or more panel->command
+/// mappings, and an optional diff-context filter.
+struct BindingDef {
     keys: Vec<KeyBinding>,
-    scope: Scope,
+    scopes: Vec<ScopeBinding>,
+    /// Only used for diff panel; filters by cursor row type.
     context: Option<RowContext>,
+}
+
+// ── Binding definition constructors ─────────────────────────────────
+
+impl BindingDef {
+    fn global(cmd: &'static Command, keys: Vec<KeyBinding>) -> Self {
+        Self {
+            keys,
+            scopes: ALL_PANELS
+                .iter()
+                .map(|&panel| ScopeBinding::on(panel, cmd))
+                .collect(),
+            context: None,
+        }
+    }
+
+    fn diff(cmd: &'static Command, keys: Vec<KeyBinding>) -> Self {
+        Self {
+            keys,
+            scopes: vec![ScopeBinding::on(Panel::Diff, cmd)],
+            context: None,
+        }
+    }
+
+    fn diff_ctx(cmd: &'static Command, keys: Vec<KeyBinding>, ctx: RowContext) -> Self {
+        Self {
+            keys,
+            scopes: vec![ScopeBinding::on(Panel::Diff, cmd)],
+            context: Some(ctx),
+        }
+    }
+
+    fn picker(cmd: &'static Command, keys: Vec<KeyBinding>) -> Self {
+        Self {
+            keys,
+            scopes: vec![ScopeBinding::on(Panel::Picker, cmd)],
+            context: None,
+        }
+    }
+
+    fn desc(cmd: &'static Command, keys: Vec<KeyBinding>) -> Self {
+        Self {
+            keys,
+            scopes: vec![ScopeBinding::on(Panel::Description, cmd)],
+            context: None,
+        }
+    }
+
+    fn multi(keys: Vec<KeyBinding>, scopes: Vec<ScopeBinding>) -> Self {
+        Self {
+            keys,
+            scopes,
+            context: None,
+        }
+    }
 }
 
 // ── Lookup result ─────────────────────────────────────────────────────
@@ -87,10 +166,13 @@ pub enum LookupResult {
 
 // ── Keymap ────────────────────────────────────────────────────────────
 
+type PendingMap = HashMap<char, HashMap<KeyCode, Vec<ScopeBinding>>>;
+
 pub struct Keymap {
     diff_view: HashMap<KeyCombo, Vec<Binding>>,
     file_picker: HashMap<KeyCombo, &'static Command>,
-    pending: HashMap<char, HashMap<KeyCode, &'static Command>>,
+    description: HashMap<KeyCombo, &'static Command>,
+    pending: PendingMap,
     labels: HashMap<&'static str, Vec<String>>,
     custom_actions: HashMap<KeyCombo, CustomAction>,
     all_custom_actions: Vec<CustomAction>,
@@ -124,7 +206,7 @@ impl Keymap {
     ) -> LookupResult {
         let combo = KeyCombo::from(key);
 
-        if matches!(focus, Focus::DiffView)
+        if matches!(focus, Focus::DiffView | Focus::Description)
             && let KeyCode::Char(c) = combo.code
             && combo.modifiers == KeyModifiers::NONE
             && self.pending.contains_key(&c)
@@ -153,14 +235,35 @@ impl Keymap {
                 .copied()
                 .map(LookupResult::Command)
                 .unwrap_or(LookupResult::None),
+            Focus::Description => self
+                .description
+                .get(&combo)
+                .copied()
+                .map(LookupResult::Command)
+                .unwrap_or(LookupResult::None),
         }
     }
 
-    pub fn lookup_pending(&self, prefix: char, code: KeyCode) -> Option<&'static Command> {
+    pub fn lookup_pending(
+        &self,
+        prefix: char,
+        code: KeyCode,
+        focus: Focus,
+    ) -> Option<&'static Command> {
+        let panel = match focus {
+            Focus::DiffView => Panel::Diff,
+            Focus::FilePicker => Panel::Picker,
+            Focus::Description => Panel::Description,
+        };
         self.pending
             .get(&prefix)
             .and_then(|m| m.get(&code))
-            .copied()
+            .and_then(|bindings| {
+                bindings
+                    .iter()
+                    .find(|s| s.panel == panel)
+                    .map(|s| s.command)
+            })
     }
 
     /// Get the primary display label for a command (e.g. "c", "gg", "Ctrl-d").
@@ -297,366 +400,144 @@ impl Keymap {
     // ── Private: declarative binding definitions ──────────────────────
 
     fn default_binding_defs() -> Vec<BindingDef> {
+        use BindingDef as B;
         use KeyBinding::{Pending, Single};
-        use Scope::{DiffOnly, Global, PickerOnly};
+        use Panel::{Description, Diff, Picker};
+        use ScopeBinding as S;
 
-        vec![
-            // ── Global ────────────────────────────────────────────────
-            BindingDef {
-                command: &command::quit,
-                keys: vec![Single('q'.into())],
-                scope: Global,
-                context: None,
-            },
-            BindingDef {
-                command: &command::escape,
-                keys: vec![Single(KeyCode::Esc.into())],
-                scope: Global,
-                context: None,
-            },
-            BindingDef {
-                command: &command::switch_focus,
-                keys: vec![Single(KeyCode::Tab.into())],
-                scope: Global,
-                context: None,
-            },
-            BindingDef {
-                command: &command::prev_panel,
-                keys: vec![Single('h'.into()), Single(KeyCode::Left.into())],
-                scope: Global,
-                context: None,
-            },
-            BindingDef {
-                command: &command::next_panel,
-                keys: vec![Single('l'.into()), Single(KeyCode::Right.into())],
-                scope: Global,
-                context: None,
-            },
-            BindingDef {
-                command: &command::help,
-                keys: vec![
-                    Single('!'.into()),
-                    Single(KeyCombo {
-                        code: KeyCode::F(1),
-                        modifiers: KeyModifiers::NONE,
-                    }),
+        let key_down = vec![Single('j'.into()), Single(KeyCode::Down.into())];
+        let key_up = vec![Single('k'.into()), Single(KeyCode::Up.into())];
+
+        let mut defs = Vec::new();
+
+        // ── Global keys (all panels) ──────────────────────────────────
+        defs.extend([
+            B::global(&command::quit, vec![Single('q'.into())]),
+            B::multi(
+                vec![Single(KeyCode::Esc.into())],
+                vec![
+                    S::on(Diff, &command::escape),
+                    S::on(Picker, &command::escape),
+                    S::on(Description, &command::desc_close),
                 ],
-                scope: Global,
-                context: None,
-            },
-            // file picker also maps ? to help
-            BindingDef {
-                command: &command::help,
-                keys: vec![Single('?'.into())],
-                scope: PickerOnly,
-                context: None,
-            },
-            // ── Navigation ────────────────────────────────────────────
-            BindingDef {
-                command: &command::scroll_down,
-                keys: vec![Single('j'.into()), Single(KeyCode::Down.into())],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::scroll_up,
-                keys: vec![Single('k'.into()), Single(KeyCode::Up.into())],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::picker_down,
-                keys: vec![Single('j'.into()), Single(KeyCode::Down.into())],
-                scope: PickerOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::picker_up,
-                keys: vec![Single('k'.into()), Single(KeyCode::Up.into())],
-                scope: PickerOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::half_page_down,
-                keys: vec![Single(KeyCombo::ctrl('d'))],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::half_page_up,
-                keys: vec![Single(KeyCombo::ctrl('u'))],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::full_page_down,
-                keys: vec![Single(KeyCombo::ctrl('f'))],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::full_page_up,
-                keys: vec![Single(KeyCombo::ctrl('b'))],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::goto_last,
-                keys: vec![Single('G'.into())],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::screen_top,
-                keys: vec![Single('H'.into())],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::screen_middle,
-                keys: vec![Single('M'.into())],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::screen_bottom,
-                keys: vec![Single('L'.into())],
-                scope: DiffOnly,
-                context: None,
-            },
-            // ── Search ────────────────────────────────────────────────
-            BindingDef {
-                command: &command::search_forward,
-                keys: vec![Single('/'.into())],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::search_backward,
-                keys: vec![Single('?'.into())],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::next_match_or_file,
-                keys: vec![Single('n'.into())],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::prev_match_or_file,
-                keys: vec![Single('N'.into())],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::file_filter,
-                keys: vec![Single('/'.into())],
-                scope: PickerOnly,
-                context: None,
-            },
-            // ── Hunks ─────────────────────────────────────────────────
-            BindingDef {
-                command: &command::next_hunk,
-                keys: vec![Single(']'.into()), Single('}'.into())],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::prev_hunk,
-                keys: vec![Single('['.into()), Single('{'.into())],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::next_change,
-                keys: vec![Single(')'.into())],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::prev_change,
-                keys: vec![Single('('.into())],
-                scope: DiffOnly,
-                context: None,
-            },
-            // ── View / UI ─────────────────────────────────────────────
-            BindingDef {
-                command: &command::toggle_view,
-                keys: vec![Single('t'.into())],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::open_browser,
-                keys: vec![Single('o'.into())],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::open_command_mode,
-                keys: vec![Single(':'.into())],
-                scope: DiffOnly,
-                context: None,
-            },
-            // ── Review actions ────────────────────────────────────────
-            BindingDef {
-                command: &command::approve,
-                keys: vec![Single('a'.into())],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::submit,
-                keys: vec![Single('s'.into())],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::unapprove,
-                keys: vec![Single('u'.into())],
-                scope: DiffOnly,
-                context: None,
-            },
-            // ── Context: File ─────────────────────────────────────────
-            BindingDef {
-                command: &command::fold_toggle,
-                keys: vec![Single(KeyCode::Enter.into())],
-                scope: DiffOnly,
-                context: Some(RowContext::File),
-            },
-            // ── Context: Code ─────────────────────────────────────────
-            BindingDef {
-                command: &command::comment_on_line,
-                keys: vec![Single('c'.into())],
-                scope: DiffOnly,
-                context: Some(RowContext::Code),
-            },
-            BindingDef {
-                command: &command::suggest,
-                keys: vec![Single('e'.into())],
-                scope: DiffOnly,
-                context: Some(RowContext::Code),
-            },
-            BindingDef {
-                command: &command::expand,
-                keys: vec![Single('E'.into())],
-                scope: DiffOnly,
-                context: Some(RowContext::Code),
-            },
-            BindingDef {
-                command: &command::visual,
-                keys: vec![Single('v'.into()), Single('V'.into())],
-                scope: DiffOnly,
-                context: Some(RowContext::Code),
-            },
-            // ── Context: Comment ──────────────────────────────────────
-            BindingDef {
-                command: &command::toggle_comment,
-                keys: vec![Single(KeyCode::Enter.into())],
-                scope: DiffOnly,
-                context: Some(RowContext::Comment),
-            },
-            BindingDef {
-                command: &command::comment_on_line,
-                keys: vec![Single('c'.into())],
-                scope: DiffOnly,
-                context: Some(RowContext::Comment),
-            },
-            BindingDef {
-                command: &command::resolve,
-                keys: vec![Single('r'.into())],
-                scope: DiffOnly,
-                context: Some(RowContext::Comment),
-            },
-            BindingDef {
-                command: &command::discard,
-                keys: vec![Single('x'.into())],
-                scope: DiffOnly,
-                context: Some(RowContext::Comment),
-            },
-            // ── Context: Suggestion ───────────────────────────────────
-            BindingDef {
-                command: &command::accept_suggestion,
-                keys: vec![Single('y'.into())],
-                scope: DiffOnly,
-                context: Some(RowContext::Suggestion),
-            },
-            // ── Pending sequences ─────────────────────────────────────
-            BindingDef {
-                command: &command::goto_first,
-                keys: vec![Pending {
-                    prefix: 'g',
-                    key: 'g',
-                }],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::center_cursor,
-                keys: vec![Pending {
-                    prefix: 'z',
-                    key: 'z',
-                }],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::scroll_cursor_top,
-                keys: vec![Pending {
-                    prefix: 'z',
-                    key: 't',
-                }],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::scroll_cursor_bottom,
-                keys: vec![Pending {
-                    prefix: 'z',
-                    key: 'b',
-                }],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::fold_open,
-                keys: vec![Pending {
-                    prefix: 'z',
-                    key: 'o',
-                }],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::fold_close,
-                keys: vec![Pending {
-                    prefix: 'z',
-                    key: 'c',
-                }],
-                scope: DiffOnly,
-                context: None,
-            },
-            // ── Comment navigation ─────────────────────────────────────
-            BindingDef {
-                command: &command::next_comment,
-                keys: vec![Pending {
-                    prefix: 'g',
-                    key: 'c',
-                }],
-                scope: DiffOnly,
-                context: None,
-            },
-            BindingDef {
-                command: &command::prev_comment,
-                keys: vec![Pending {
-                    prefix: 'g',
-                    key: 'C',
-                }],
-                scope: DiffOnly,
-                context: None,
-            },
-        ]
+            ),
+            B::global(&command::switch_focus, vec![Single(KeyCode::Tab.into())]),
+            B::global(&command::prev_panel, vec![Single('h'.into()), Single(KeyCode::Left.into())]),
+            B::global(&command::next_panel, vec![Single('l'.into()), Single(KeyCode::Right.into())]),
+            B::global(&command::help, vec![
+                Single('!'.into()),
+                Single(KeyCombo { code: KeyCode::F(1), modifiers: KeyModifiers::NONE }),
+            ]),
+            B::global(&command::open_browser, vec![Single('o'.into())]),
+            B::picker(&command::help, vec![Single('?'.into())]),
+        ]);
+
+        // ── Navigation (per-panel scroll/page/jump) ───────────────────
+        defs.extend([
+            B::multi(key_down, vec![
+                S::on(Diff, &command::scroll_down),
+                S::on(Picker, &command::picker_down),
+                S::on(Description, &command::desc_scroll_down),
+            ]),
+            B::multi(key_up, vec![
+                S::on(Diff, &command::scroll_up),
+                S::on(Picker, &command::picker_up),
+                S::on(Description, &command::desc_scroll_up),
+            ]),
+            B::multi(vec![Single(KeyCombo::ctrl('d'))], vec![
+                S::on(Diff, &command::half_page_down),
+                S::on(Description, &command::desc_page_down),
+            ]),
+            B::multi(vec![Single(KeyCombo::ctrl('u'))], vec![
+                S::on(Diff, &command::half_page_up),
+                S::on(Description, &command::desc_page_up),
+            ]),
+            B::multi(vec![Single(KeyCombo::ctrl('f'))], vec![
+                S::on(Diff, &command::full_page_down),
+                S::on(Description, &command::desc_page_down),
+            ]),
+            B::multi(vec![Single(KeyCombo::ctrl('b'))], vec![
+                S::on(Diff, &command::full_page_up),
+                S::on(Description, &command::desc_page_up),
+            ]),
+            B::multi(vec![Single('G'.into())], vec![
+                S::on(Diff, &command::goto_last),
+                S::on(Description, &command::desc_goto_last),
+            ]),
+            B::diff(&command::screen_top, vec![Single('H'.into())]),
+            B::diff(&command::screen_middle, vec![Single('M'.into())]),
+            B::diff(&command::screen_bottom, vec![Single('L'.into())]),
+        ]);
+
+        // ── Search (diff only) ────────────────────────────────────────
+        defs.extend([
+            B::diff(&command::search_forward, vec![Single('/'.into())]),
+            B::diff(&command::search_backward, vec![Single('?'.into())]),
+            B::diff(&command::next_match_or_file, vec![Single('n'.into())]),
+            B::diff(&command::prev_match_or_file, vec![Single('N'.into())]),
+            B::picker(&command::file_filter, vec![Single('/'.into())]),
+        ]);
+
+        // ── Jumps (diff + description) ────────────────────────────────
+        defs.extend([
+            B::multi(vec![Single(']'.into()), Single('}'.into())], vec![
+                S::on(Diff, &command::next_hunk),
+                S::on(Description, &command::desc_next_section),
+            ]),
+            B::multi(vec![Single('['.into()), Single('{'.into())], vec![
+                S::on(Diff, &command::prev_hunk),
+                S::on(Description, &command::desc_prev_section),
+            ]),
+            B::diff(&command::next_change, vec![Single(')'.into())]),
+            B::diff(&command::prev_change, vec![Single('('.into())]),
+        ]);
+
+        // ── View / UI ─────────────────────────────────────────────────
+        defs.extend([
+            B::diff(&command::toggle_view, vec![Single('t'.into())]),
+            B::diff(&command::open_command_mode, vec![Single(':'.into())]),
+        ]);
+
+        // ── Review actions (diff only) ────────────────────────────────
+        defs.extend([
+            B::diff(&command::approve, vec![Single('a'.into())]),
+            B::diff(&command::submit, vec![Single('s'.into())]),
+            B::diff(&command::unapprove, vec![Single('u'.into())]),
+        ]);
+
+        // ── Diff context-sensitive keys ───────────────────────────────
+        defs.extend([
+            B::diff_ctx(&command::fold_toggle, vec![Single(KeyCode::Enter.into())], RowContext::File),
+            B::diff_ctx(&command::comment_on_line, vec![Single('c'.into())], RowContext::Code),
+            B::diff_ctx(&command::suggest, vec![Single('e'.into())], RowContext::Code),
+            B::diff_ctx(&command::expand, vec![Single('E'.into())], RowContext::Code),
+            B::diff_ctx(&command::visual, vec![Single('v'.into()), Single('V'.into())], RowContext::Code),
+            B::diff_ctx(&command::toggle_comment, vec![Single(KeyCode::Enter.into())], RowContext::Comment),
+            B::diff_ctx(&command::comment_on_line, vec![Single('c'.into())], RowContext::Comment),
+            B::diff_ctx(&command::resolve, vec![Single('r'.into())], RowContext::Comment),
+            B::diff_ctx(&command::discard, vec![Single('x'.into())], RowContext::Comment),
+            B::diff_ctx(&command::accept_suggestion, vec![Single('y'.into())], RowContext::Suggestion),
+        ]);
+
+        // ── Description panel keys ────────────────────────────────────
+        defs.push(B::desc(&command::edit_description, vec![Single('e'.into())]));
+
+        // ── Pending sequences (two-key combos) ────────────────────────
+        defs.extend([
+            B::multi(vec![Pending { prefix: 'g', key: 'g' }], vec![
+                S::on(Diff, &command::goto_first),
+                S::on(Description, &command::desc_goto_first),
+            ]),
+            B::diff(&command::center_cursor, vec![Pending { prefix: 'z', key: 'z' }]),
+            B::diff(&command::scroll_cursor_top, vec![Pending { prefix: 'z', key: 't' }]),
+            B::diff(&command::scroll_cursor_bottom, vec![Pending { prefix: 'z', key: 'b' }]),
+            B::diff(&command::fold_open, vec![Pending { prefix: 'z', key: 'o' }]),
+            B::diff(&command::fold_close, vec![Pending { prefix: 'z', key: 'c' }]),
+            B::diff(&command::next_comment, vec![Pending { prefix: 'g', key: 'c' }]),
+            B::diff(&command::prev_comment, vec![Pending { prefix: 'g', key: 'C' }]),
+        ]);
+
+        defs
     }
 
     fn apply_overrides(
@@ -685,7 +566,8 @@ impl Keymap {
 
             let mut found = false;
             for def in defs.iter_mut() {
-                if def.command.name == cmd_name {
+                let matches = def.scopes.iter().any(|sb| sb.command.name == cmd_name);
+                if matches {
                     def.keys = new_keys.clone();
                     found = true;
                 }
@@ -698,12 +580,7 @@ impl Keymap {
                         .and_then(|target| command::Command::by_name(target))
                 });
                 if let Some(cmd) = resolved_cmd {
-                    defs.push(BindingDef {
-                        command: cmd,
-                        keys: new_keys,
-                        scope: Scope::DiffOnly,
-                        context: None,
-                    });
+                    defs.push(BindingDef::diff(cmd, new_keys));
                 } else {
                     warnings.push(format!("Unknown command in config: {cmd_name}"));
                 }
@@ -715,7 +592,11 @@ impl Keymap {
         if disabled.is_empty() {
             return;
         }
-        defs.retain(|def| !disabled.iter().any(|d| d == def.command.name));
+        defs.retain(|def| {
+            !def.scopes
+                .iter()
+                .any(|sb| disabled.iter().any(|d| d == sb.command.name))
+        });
     }
 
     fn build(
@@ -726,49 +607,50 @@ impl Keymap {
     ) -> Self {
         let mut diff_view: HashMap<KeyCombo, Vec<Binding>> = HashMap::new();
         let mut file_picker: HashMap<KeyCombo, &'static Command> = HashMap::new();
-        let mut pending: HashMap<char, HashMap<KeyCode, &'static Command>> = HashMap::new();
+        let mut description: HashMap<KeyCombo, &'static Command> = HashMap::new();
+        let mut pending: PendingMap = HashMap::new();
         let mut labels: HashMap<&'static str, Vec<String>> = HashMap::new();
 
         for def in &defs {
-            let entry = labels.entry(def.command.name).or_default();
-            for key in &def.keys {
-                let label = format_key_binding(key);
-                if !entry.contains(&label) {
-                    entry.push(label);
+            // Collect labels from the first scope binding's command name
+            if let Some(first) = def.scopes.first() {
+                let entry = labels.entry(first.command.name).or_default();
+                for key in &def.keys {
+                    let label = format_key_binding(key);
+                    if !entry.contains(&label) {
+                        entry.push(label);
+                    }
                 }
             }
 
-            for key in &def.keys {
-                match key {
-                    KeyBinding::Single(combo) => match def.scope {
-                        Scope::Global => {
-                            diff_view
-                                .entry(combo.clone())
+            for sb in &def.scopes {
+                for key in &def.keys {
+                    match key {
+                        KeyBinding::Single(combo) => match sb.panel {
+                            Panel::Diff => {
+                                diff_view
+                                    .entry(combo.clone())
+                                    .or_default()
+                                    .push(Binding {
+                                        command: sb.command,
+                                        context: def.context,
+                                    });
+                            }
+                            Panel::Picker => {
+                                file_picker.insert(combo.clone(), sb.command);
+                            }
+                            Panel::Description => {
+                                description.insert(combo.clone(), sb.command);
+                            }
+                        },
+                        KeyBinding::Pending { prefix, key } => {
+                            pending
+                                .entry(*prefix)
                                 .or_default()
-                                .push(Binding {
-                                    command: def.command,
-                                    context: def.context,
-                                });
-                            file_picker.insert(combo.clone(), def.command);
-                        }
-                        Scope::DiffOnly => {
-                            diff_view
-                                .entry(combo.clone())
+                                .entry(KeyCode::Char(*key))
                                 .or_default()
-                                .push(Binding {
-                                    command: def.command,
-                                    context: def.context,
-                                });
+                                .push(*sb);
                         }
-                        Scope::PickerOnly => {
-                            file_picker.insert(combo.clone(), def.command);
-                        }
-                    },
-                    KeyBinding::Pending { prefix, key } => {
-                        pending
-                            .entry(*prefix)
-                            .or_default()
-                            .insert(KeyCode::Char(*key), def.command);
                     }
                 }
             }
@@ -777,6 +659,7 @@ impl Keymap {
         Self {
             diff_view,
             file_picker,
+            description,
             pending,
             labels,
             custom_actions: resolved.keyed,

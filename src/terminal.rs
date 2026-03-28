@@ -8,7 +8,7 @@ use crossterm::{
 };
 use ratatui::{Terminal, backend::CrosstermBackend};
 
-use crate::{app, editor, event, types};
+use crate::{app, components::description_panel::CursorRegion, editor, event, types};
 
 pub type Term = Terminal<CrosstermBackend<std::io::Stdout>>;
 
@@ -65,6 +65,55 @@ pub fn handle_action(
                     });
                     app.rebuild_display();
                     app.status.success("Suggestion added");
+                }
+                Ok(_) => {
+                    app.status.info("No changes made");
+                }
+                Err(e) => {
+                    app.status.error(format!("Editor failed: {e}"));
+                }
+            }
+        }
+        app::Action::EditDescription { region, content } => {
+            events.pause();
+            suspend(terminal);
+            let result = editor::edit_in_external(&content, "md");
+            resume(terminal)?;
+            events.resume();
+
+            match result {
+                Ok(edited) if edited.trim() != content.trim() => {
+                    let (field, display) = match region {
+                        CursorRegion::Title => ("title", "title"),
+                        CursorRegion::Body => ("body", "description"),
+                    };
+                    let value = edited.trim().to_string();
+                    match region {
+                        CursorRegion::Title => app.description_panel.title = value.clone(),
+                        CursorRegion::Body => app.description_panel.body = value.clone(),
+                    }
+                    app.description_panel.rebuild_content(app.description_panel.last_width.max(60));
+
+                    let tx = app.tx.clone();
+                    let repo = app.repo.clone();
+                    let pr = app.pr_number;
+                    let field = field.to_string();
+                    app.status.info(format!("Updating {display}..."));
+                    tokio::spawn(async move {
+                        match crate::gh::update_pr(&repo, pr, &field, &value).await {
+                            Ok(()) => {
+                                let _ = tx.send(crate::event::AppEvent::CustomActionComplete {
+                                    description: format!("PR {display} updated"),
+                                    result: Ok(()),
+                                });
+                            }
+                            Err(e) => {
+                                let _ = tx.send(crate::event::AppEvent::Error(
+                                    format!("Failed to update {display}: {e}"),
+                                ));
+                            }
+                        }
+                    });
                 }
                 Ok(_) => {
                     app.status.info("No changes made");

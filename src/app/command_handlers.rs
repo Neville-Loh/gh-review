@@ -1,3 +1,10 @@
+//! Command handler functions — one per [`Command`] in the registry.
+//!
+//! Each function takes `&mut App` and performs a single action. Handlers are
+//! panel-specific: diff handlers touch `app.diff_view`, description handlers
+//! touch `app.description_panel`, etc. The keymap routes the right handler
+//! to the right panel via [`ScopeBinding`].
+
 use crate::search::SearchDirection;
 use crate::types::ReviewEvent;
 
@@ -167,15 +174,18 @@ pub fn help(app: &mut App) {
 }
 
 pub fn switch_focus(app: &mut App) {
-    app.focus = app.focus.next();
+    let desc_open = app.description_panel.visible;
+    app.focus = app.focus.next(desc_open);
 }
 
 pub fn next_panel(app: &mut App) {
-    app.focus = app.focus.next();
+    let desc_open = app.description_panel.visible;
+    app.focus = app.focus.next(desc_open);
 }
 
 pub fn prev_panel(app: &mut App) {
-    app.focus = app.focus.prev();
+    let desc_open = app.description_panel.visible;
+    app.focus = app.focus.prev(desc_open);
 }
 
 pub fn toggle_view(app: &mut App) {
@@ -421,4 +431,64 @@ pub fn picker_down(app: &mut App) {
 pub fn picker_up(app: &mut App) {
     app.file_picker.prev();
     app.diff_view.goto_file(app.file_picker.selected);
+}
+
+pub fn description(app: &mut App) {
+    if app.focus == super::Focus::Description {
+        app.focus = super::Focus::DiffView;
+    } else {
+        app.description_panel.visible = true;
+        app.focus = super::Focus::Description;
+    }
+}
+
+pub fn edit_description(app: &mut App) {
+    let region = app.description_panel.cursor_region();
+    let content = match region {
+        crate::components::description_panel::CursorRegion::Title => {
+            app.description_panel.title.clone()
+        }
+        crate::components::description_panel::CursorRegion::Body => {
+            app.description_panel.body.clone()
+        }
+    };
+    app.pending_action = Some(super::Action::EditDescription { region, content });
+}
+
+// ── Description panel navigation ─────────────────────────────────────
+
+pub fn desc_scroll_down(app: &mut App) {
+    app.description_panel.cursor_down();
+}
+
+pub fn desc_scroll_up(app: &mut App) {
+    app.description_panel.cursor_up();
+}
+
+pub fn desc_page_down(app: &mut App) {
+    app.description_panel.half_page_down(app.visible_height);
+}
+
+pub fn desc_page_up(app: &mut App) {
+    app.description_panel.half_page_up(app.visible_height);
+}
+
+pub fn desc_goto_first(app: &mut App) {
+    app.description_panel.goto_top();
+}
+
+pub fn desc_goto_last(app: &mut App) {
+    app.description_panel.goto_bottom();
+}
+
+pub fn desc_next_section(app: &mut App) {
+    app.description_panel.next_section();
+}
+
+pub fn desc_prev_section(app: &mut App) {
+    app.description_panel.prev_section();
+}
+
+pub fn desc_close(app: &mut App) {
+    app.focus = super::Focus::DiffView;
 }
