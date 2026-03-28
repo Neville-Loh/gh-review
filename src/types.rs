@@ -138,6 +138,7 @@ pub enum DiffMode {
 pub struct PrMetadata {
     pub number: u64,
     pub title: String,
+    pub body: Option<String>,
     pub state: String,
     pub head: PrRef,
     pub base: PrRef,

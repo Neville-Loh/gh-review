@@ -33,17 +33,40 @@ impl App {
 
         self.draw_title(frame, main_layout[0]);
 
-        let content_layout = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
+        let desc_open = self.description_panel.visible
+            && self.focus == Focus::Description;
+        let content_constraints = if desc_open {
+            vec![
+                Constraint::Length(30),
+                Constraint::Min(40),
+                Constraint::Percentage(35),
+            ]
+        } else {
+            vec![
                 Constraint::Length(30),
                 Constraint::Min(0),
-            ])
+            ]
+        };
+        let content_layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(content_constraints)
             .split(main_layout[1]);
 
-        let diff_height = content_layout[1].height.saturating_sub(2) as usize;
+        // Clear the entire content row to prevent stale artifacts
+        // when panels resize (e.g. description drawer closing).
+        let content_area = main_layout[1];
+        for y in content_area.y..content_area.y + content_area.height {
+            for x in content_area.x..content_area.x + content_area.width {
+                if let Some(cell) = frame.buffer_mut().cell_mut((x, y)) {
+                    cell.reset();
+                }
+            }
+        }
+
+        let diff_area = content_layout[1];
+        let diff_height = diff_area.height.saturating_sub(2) as usize;
         self.visible_height = diff_height;
-        let panel_inner_width = content_layout[1].width.saturating_sub(2) as usize;
+        let panel_inner_width = diff_area.width.saturating_sub(2) as usize;
         let new_wrap_width = match self.diff_view.mode {
             DiffMode::SideBySide => panel_inner_width / 2,
             DiffMode::Unified => panel_inner_width,
@@ -61,10 +84,18 @@ impl App {
         );
 
         self.diff_view.draw(
-            content_layout[1],
+            diff_area,
             frame.buffer_mut(),
             self.focus == Focus::DiffView,
         );
+
+        if desc_open {
+            self.description_panel.draw(
+                content_layout[2],
+                frame.buffer_mut(),
+                self.focus == Focus::Description,
+            );
+        }
 
         if self.command_bar.active {
             self.command_bar
@@ -84,6 +115,8 @@ impl App {
                 self.pending_comments.len(),
                 &self.status,
                 &self.keymap,
+                self.focus,
+                self.description_panel.cursor_region(),
             );
         }
 

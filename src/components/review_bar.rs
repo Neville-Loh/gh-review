@@ -6,6 +6,8 @@ use ratatui::{
 };
 
 use crate::app::keymap::Keymap;
+use crate::app::Focus;
+use crate::components::description_panel::CursorRegion;
 use crate::components::status_line::StatusLine;
 use crate::theme::Theme;
 use crate::types::RowContext;
@@ -13,6 +15,7 @@ use crate::types::RowContext;
 pub struct ReviewBar;
 
 impl ReviewBar {
+    #[allow(clippy::too_many_arguments)]
     pub fn draw(
         area: Rect,
         buf: &mut Buffer,
@@ -20,8 +23,14 @@ impl ReviewBar {
         pending_count: usize,
         status: &StatusLine,
         keymap: &Keymap,
+        focus: Focus,
+        desc_region: CursorRegion,
     ) {
-        let mut spans = Self::context_hints(context, keymap);
+        let mut spans = if focus == Focus::Description {
+            Self::description_hints(desc_region, keymap)
+        } else {
+            Self::context_hints(context, keymap)
+        };
 
         let help_key = keymap.key_label("help");
         spans.push(Span::styled(format!("[{help_key}]"), Theme::review_bar_key()));
@@ -58,5 +67,19 @@ impl ReviewBar {
             spans.push(Span::styled(format!(" {desc} "), Theme::review_bar_label()));
         }
         spans
+    }
+
+    fn description_hints(region: CursorRegion, keymap: &Keymap) -> Vec<Span<'static>> {
+        let region_name = match region {
+            CursorRegion::Title => "title",
+            CursorRegion::Body => "body",
+        };
+        let edit_key = keymap.key_label("edit_description");
+        vec![
+            Span::styled(format!(" [{edit_key}]"), Theme::review_bar_key()),
+            Span::styled(format!(" edit {region_name} "), Theme::review_bar_label()),
+            Span::styled("[Esc]", Theme::review_bar_key()),
+            Span::styled(" close ", Theme::review_bar_label()),
+        ]
     }
 }

@@ -40,7 +40,7 @@ impl App {
         }
 
         if let Some(pending) = self.pending_key.take() {
-            if let Some(cmd) = self.keymap.lookup_pending(pending, key.code) {
+            if let Some(cmd) = self.keymap.lookup_pending(pending, key.code, self.focus) {
                 (cmd.execute)(self);
             }
             return;

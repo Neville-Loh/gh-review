@@ -9,6 +9,7 @@ use tokio::sync::mpsc;
 
 use crate::components::command_bar::CommandBar;
 use crate::components::comment_input::CommentInput;
+use crate::components::description_panel::DescriptionPanel;
 use crate::components::diff_view::DiffView;
 use crate::components::file_picker::FilePicker;
 use crate::components::review_confirm::ReviewConfirm;
@@ -25,20 +26,25 @@ use crate::types::{DiffFile, ExistingComment, PrMetadata, ReviewComment, ThreadI
 pub(crate) enum Focus {
     FilePicker,
     DiffView,
+    Description,
 }
 
 impl Focus {
-    pub fn next(self) -> Self {
+    pub fn next(self, desc_open: bool) -> Self {
         match self {
             Focus::FilePicker => Focus::DiffView,
+            Focus::DiffView if desc_open => Focus::Description,
             Focus::DiffView => Focus::FilePicker,
+            Focus::Description => Focus::FilePicker,
         }
     }
 
-    pub fn prev(self) -> Self {
+    pub fn prev(self, desc_open: bool) -> Self {
         match self {
+            Focus::FilePicker if desc_open => Focus::Description,
             Focus::FilePicker => Focus::DiffView,
             Focus::DiffView => Focus::FilePicker,
+            Focus::Description => Focus::DiffView,
         }
     }
 }
@@ -54,6 +60,10 @@ pub enum Action {
         content: String,
         file_ext: String,
     },
+    EditDescription {
+        region: crate::components::description_panel::CursorRegion,
+        content: String,
+    },
 }
 
 pub struct App {
@@ -68,6 +78,7 @@ pub struct App {
 
     pub(crate) file_picker: FilePicker,
     pub(crate) diff_view: DiffView,
+    pub(crate) description_panel: DescriptionPanel,
     pub(crate) comment_input: CommentInput,
     pub(crate) review_confirm: ReviewConfirm,
     pub(crate) search_bar: SearchBar,
@@ -109,6 +120,7 @@ impl App {
             thread_map: HashMap::new(),
             file_picker: FilePicker::new(),
             diff_view: DiffView::new(),
+            description_panel: DescriptionPanel::new(),
             comment_input: CommentInput::new(),
             review_confirm: ReviewConfirm::new(),
             search_bar: SearchBar::new(),
@@ -193,6 +205,7 @@ impl App {
             AppEvent::Resize(_, _) => {}
             AppEvent::Tick => {}
             AppEvent::PrLoaded(meta) => {
+                self.description_panel.load(&meta.title, meta.body.as_deref());
                 self.pr_meta = Some(*meta);
                 self.loading = false;
             }

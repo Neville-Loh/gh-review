@@ -73,6 +73,13 @@ pub async fn fetch_pr_metadata(repo: &str, pr_number: u64) -> Result<PrMetadata>
     serde_json::from_str(&output).context("Failed to parse PR metadata")
 }
 
+pub async fn update_pr(repo: &str, pr_number: u64, field: &str, value: &str) -> Result<()> {
+    let url = format!("repos/{repo}/pulls/{pr_number}");
+    let field_arg = format!("{field}={value}");
+    run_gh(&["api", &url, "-X", "PATCH", "-f", &field_arg]).await?;
+    Ok(())
+}
+
 pub async fn fetch_pr_files(repo: &str, pr_number: u64) -> Result<Vec<DiffFile>> {
     let url = format!("repos/{repo}/pulls/{pr_number}/files");
     let output = run_gh(&["api", &url, "--paginate"]).await?;
