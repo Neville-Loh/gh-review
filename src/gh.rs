@@ -6,8 +6,8 @@ use std::collections::HashMap;
 use serde::Deserialize;
 
 use crate::types::{
-    DiffFile, ExistingComment, FileStatus, GhFile, PrMetadata, PrReview, PrUser, ReviewComment,
-    ReviewEvent, ThreadInfo,
+    DiffFile, ExistingComment, FileStatus, GhFile, PrMetadata, PrRef, PrReview, PrUser,
+    ReviewComment, ReviewEvent, ThreadInfo,
 };
 
 async fn run_gh(args: &[&str]) -> Result<String> {
@@ -291,6 +291,153 @@ async fn run_graphql(query: &str, variables: &serde_json::Value) -> Result<serde
     let result: serde_json::Value =
         serde_json::from_slice(&output.stdout).context("Failed to parse GraphQL response")?;
     Ok(result)
+}
+
+/// Batch-fetch full PR data for multiple PRs in a single GraphQL call.
+///
+/// Returns a map from PR number to parsed data. Used for stack pre-fetching.
+/// Note: GraphQL does not provide file patches (diff text), so files only
+/// contain metadata. Diff patches are fetched on-demand via REST when the
+/// user navigates to a pre-fetched PR.
+pub async fn fetch_prs_batch(
+    repo: &str,
+    pr_numbers: &[u64],
+) -> Result<HashMap<u64, (PrMetadata, Vec<ExistingComment>, HashMap<u64, ThreadInfo>)>> {
+    if pr_numbers.is_empty() {
+        return Ok(HashMap::new());
+    }
+
+    let (owner, name) = repo
+        .split_once('/')
+        .context("Invalid repo format, expected owner/name")?;
+
+    // Build aliased query: pr123: pullRequest(number: 123) { ...PrFields }
+    let fragment = r#"
+fragment PrFields on PullRequest {
+    number title body state
+    headRefName baseRefName headRefOid baseRefOid
+    additions deletions changedFiles
+    author { login }
+    reviewThreads(first: 100) {
+        nodes {
+            id isResolved
+            comments(first: 100) {
+                nodes {
+                    databaseId body path line startLine createdAt
+                    author { login }
+                    replyTo { databaseId }
+                }
+            }
+        }
+    }
+    comments(first: 100) {
+        nodes { databaseId body author { login } createdAt }
+    }
+}
+"#;
+
+    let pr_aliases: Vec<String> = pr_numbers
+        .iter()
+        .map(|n| format!("pr{n}: pullRequest(number: {n}) {{ ...PrFields }}"))
+        .collect();
+
+    let query = format!(
+        "{fragment}\nquery {{ repository(owner: \"{owner}\", name: \"{name}\") {{ {} }} }}",
+        pr_aliases.join("\n")
+    );
+
+    let result = run_graphql(&query, &serde_json::json!({})).await?;
+    let repo_data = &result["data"]["repository"];
+
+    let mut out = HashMap::new();
+    for &pr_number in pr_numbers {
+        let key = format!("pr{pr_number}");
+        let pr = &repo_data[&key];
+        if pr.is_null() {
+            continue;
+        }
+
+        let meta = PrMetadata {
+            number: pr_number,
+            title: pr["title"].as_str().unwrap_or("").to_string(),
+            body: pr["body"].as_str().map(String::from),
+            state: pr["state"].as_str().unwrap_or("").to_string(),
+            head: PrRef {
+                sha: pr["headRefOid"].as_str().unwrap_or("").to_string(),
+                ref_name: pr["headRefName"].as_str().unwrap_or("").to_string(),
+            },
+            base: PrRef {
+                sha: pr["baseRefOid"].as_str().unwrap_or("").to_string(),
+                ref_name: pr["baseRefName"].as_str().unwrap_or("").to_string(),
+            },
+            user: PrUser {
+                login: pr["author"]["login"].as_str().unwrap_or("").to_string(),
+            },
+            additions: pr["additions"].as_u64().map(|v| v as usize),
+            deletions: pr["deletions"].as_u64().map(|v| v as usize),
+            changed_files: pr["changedFiles"].as_u64().map(|v| v as usize),
+        };
+
+        // Parse review thread comments
+        let mut comments = Vec::new();
+        let mut threads = HashMap::new();
+
+        if let Some(thread_nodes) = pr["reviewThreads"]["nodes"].as_array() {
+            for thread in thread_nodes {
+                let thread_id = thread["id"].as_str().unwrap_or("").to_string();
+                let is_resolved = thread["isResolved"].as_bool().unwrap_or(false);
+
+                if let Some(comment_nodes) = thread["comments"]["nodes"].as_array() {
+                    for (i, c) in comment_nodes.iter().enumerate() {
+                        let db_id = c["databaseId"].as_u64().unwrap_or(0);
+                        if i == 0 {
+                            threads.insert(db_id, ThreadInfo {
+                                thread_node_id: thread_id.clone(),
+                                is_resolved,
+                            });
+                        }
+                        let reply_to = c["replyTo"]["databaseId"].as_u64();
+                        comments.push(ExistingComment {
+                            id: db_id,
+                            path: c["path"].as_str().unwrap_or("").to_string(),
+                            line: c["line"].as_u64().map(|v| v as usize),
+                            side: None,
+                            start_line: c["startLine"].as_u64().map(|v| v as usize),
+                            body: c["body"].as_str().unwrap_or("").to_string(),
+                            user: PrUser {
+                                login: c["author"]["login"].as_str().unwrap_or("").to_string(),
+                            },
+                            created_at: c["createdAt"].as_str().unwrap_or("").to_string(),
+                            in_reply_to_id: reply_to,
+                        });
+                    }
+                }
+            }
+        }
+
+        // Parse conversation comments
+        if let Some(comment_nodes) = pr["comments"]["nodes"].as_array() {
+            for c in comment_nodes {
+                comments.push(ExistingComment {
+                    id: c["databaseId"].as_u64().unwrap_or(0),
+                    path: String::new(),
+                    line: None,
+                    side: None,
+                    start_line: None,
+                    body: c["body"].as_str().unwrap_or("").to_string(),
+                    user: PrUser {
+                        login: c["author"]["login"].as_str().unwrap_or("").to_string(),
+                    },
+                    created_at: c["createdAt"].as_str().unwrap_or("").to_string(),
+                    in_reply_to_id: None,
+                });
+            }
+        }
+
+        out.insert(pr_number, (meta, comments, threads));
+    }
+
+    Ok(out)
 }
 
 /// Fetch review thread resolve status. Returns a map from root comment database ID

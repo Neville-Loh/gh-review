@@ -5,6 +5,7 @@ use unicode_width::UnicodeWidthStr;
 
 use super::layout;
 use super::wrap::wrap_spans;
+use crate::stack::graphite;
 use crate::types::{DiffFile, DiffLine, ExistingComment, LineKind, ReviewComment, Side, ThreadInfo};
 
 #[derive(Debug, Clone)]
@@ -176,6 +177,7 @@ pub fn build_display_rows(
                         .filter(|c| {
                             c.path == file.path
                                 && c.line == Some(lineno)
+                                && !graphite::is_graphite_stack_comment(&c.body)
                                 && matches!(
                                     (c.side.as_deref(), &target_side),
                                     (Some("LEFT"), Side::Left)
@@ -332,9 +334,10 @@ pub fn build_display_rows(
     }
 
     // Collect file-level comments (line: None) -- not attached to any diff line.
+    // Filter out auto-generated Graphite stack comments.
     let orphan_comments: Vec<&ExistingComment> = existing_comments
         .iter()
-        .filter(|c| c.line.is_none())
+        .filter(|c| c.line.is_none() && !graphite::is_graphite_stack_comment(&c.body))
         .collect();
 
     if !orphan_comments.is_empty() {

@@ -7,6 +7,7 @@ mod dirs;
 mod editor;
 mod event;
 mod gh;
+pub mod stack;
 mod highlight;
 mod search;
 mod terminal;

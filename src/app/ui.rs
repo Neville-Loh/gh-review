@@ -94,6 +94,7 @@ impl App {
                 content_layout[2],
                 frame.buffer_mut(),
                 self.focus == Focus::Description,
+                &self.stack,
             );
         }
 

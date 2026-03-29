@@ -46,6 +46,13 @@ impl KeyCombo {
             modifiers: KeyModifiers::CONTROL,
         }
     }
+
+    pub fn super_key(code: KeyCode) -> Self {
+        Self {
+            code,
+            modifiers: KeyModifiers::SUPER,
+        }
+    }
 }
 
 impl From<&KeyEvent> for KeyCombo {
@@ -495,7 +502,19 @@ impl Keymap {
         // ── View / UI ─────────────────────────────────────────────────
         defs.extend([
             B::diff(&command::toggle_view, vec![Single('t'.into())]),
-            B::diff(&command::open_command_mode, vec![Single(':'.into())]),
+            B::global(&command::open_command_mode, vec![Single(':'.into())]),
+        ]);
+
+        // ── Stack navigation ─────────────────────────────────────────
+        defs.extend([
+            B::global(&command::stack_up, vec![
+                Single(KeyCombo::super_key(KeyCode::Up)),
+                Single(KeyCombo::super_key(KeyCode::Char('k'))),
+            ]),
+            B::global(&command::stack_down, vec![
+                Single(KeyCombo::super_key(KeyCode::Down)),
+                Single(KeyCombo::super_key(KeyCode::Char('j'))),
+            ]),
         ]);
 
         // ── Review actions (diff only) ────────────────────────────────
