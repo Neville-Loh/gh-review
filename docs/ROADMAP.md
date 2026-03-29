@@ -9,9 +9,9 @@
 | M2.6 — Search | Regex search with smart-case, match highlighting, file picker filter | done |
 | M3 — Full Review Comments | Resolve/unresolve threads, suggestion diffs, review body, unapprove | done |
 | M7 — User Configuration | TOML config, remappable keybindings, custom actions | done |
+| M4.5 — PR Description Panel | View and edit PR description, panel navigation, scoped command system | done |
+| M5 — Graphite Stacked PRs | Stack detection, navigate between PRs, GraphQL pre-fetch, PR cache | done |
 | M4 — Claude Review | AI-powered code review via Claude API, inline comment display | **next** |
-| M4.5 — PR Description Panel | View and edit PR description, panel navigation between diff/files/description | planned |
-| M5 — Graphite Stacked PRs | Stack detection, navigate between PRs, diff against parent branch | planned |
 | M6 — Polish | Word-level diff, status line, custom themes | later |
 | M8 — gh-dash-rs Integration | Library crate extraction, native view inside gh-dash Rust rewrite | future |
 | M9 — AI Chat Panel | Side-by-side chat panel for discussing code with Claude while reviewing | future |
@@ -176,81 +176,74 @@ graph TD
 - Configurable review focus (security, performance, correctness, style)
 - Severity levels: error, warning, suggestion, nit
 
-### M4.5 — PR Description Panel (planned)
+### M4.5 — PR Description Panel (done)
 
-A dedicated panel for viewing and editing the PR description, with keyboard-driven navigation between panels.
-
-```mermaid
-graph TD
-    subgraph m45 [M4.5: PR Description Panel]
-        PD1["Fetch PR title + description via API"] --> PD2["Render markdown description in scrollable panel"]
-        PD2 --> PD3["Edit mode: open description in textarea / $EDITOR"]
-        PD3 --> PD4["Save edits back via GitHub API"]
-        PD5["Panel navigation keybindings"] --> PD6["Jump between file picker / diff / description panels"]
-    end
-```
+Collapsible drawer for the PR description with rich markdown, scoped command
+system, and branch info display.
 
 **Description panel**
-- New panel displaying the PR title, description body, labels, and metadata
-- Markdown rendered with basic formatting (headings, lists, code blocks, links)
-- Scrollable with standard vim navigation (`j`/`k`, `gg`/`G`, `Ctrl+D`/`Ctrl+U`)
+- Right-side drawer toggled via `:description`, closes when focus leaves
+- PR title (bold), branch info (base → head), and body rendered as rich markdown
+- Line-by-line cursor matching the diff panel, with `▌` selection indicator
+- Scrollable with all standard navigation (j/k, gg/G, Ctrl+D/U, ]/[ for sections)
+- Text wrapping at panel width, auto-rebuilds on resize
 
 **Edit description**
-- Press `e` in the description panel to enter edit mode
-- Opens the description in `$EDITOR` (or built-in textarea as fallback)
-- On save, update the PR description via the GitHub API
-- Edit the PR title via `:set-title` command or a dedicated keybinding
+- `e` on title region opens `$EDITOR` for the title, saves via GitHub API
+- `e` on body region opens `$EDITOR` for the body, saves via GitHub API
+- Review bar shows context-sensitive hints (`[e] edit title`, `[e] edit body`)
+
+**Scoped command system**
+- `BindingDef` supports multi-scope: same key → different command per panel
+- `Panel` enum (Diff, Picker, Description) routes bindings to separate keymaps
+- Panel-aware pending sequences (gg works in all panels)
+- `Global` is sugar for "same command in all panels"
+- Handlers are single-purpose: no `match app.focus` branching
 
 **Panel navigation**
-- Keybindings to jump between panels: file picker, diff view, description panel
-- Tab / Shift-Tab to cycle through panels, or direct jump keys (e.g. `1`/`2`/`3`)
-- Active panel indicated visually with a highlighted border
-- Each panel remembers its scroll position and cursor when switching away
+- `h`/`l`/Tab cycle: FilePicker ↔ DiffView ↔ Description (when open)
+- `:` command mode works from all panels (global scope)
+- `o` (open browser) works from all panels
+- Active panel shown with highlighted border
 
-### M5 — Graphite Stacked PRs (planned)
+**Title bar**
+- Shows repo, PR number, title, and colored diff stats (+N green / -N red)
+- Branch refs moved to description panel
 
-Graphite stacked PRs require reviewing each PR against its parent branch (not main), navigating between PRs in a stack, and understanding where a PR sits in the dependency chain.
+### M5 — Graphite Stacked PRs (done)
 
-```mermaid
-graph TD
-    subgraph m5 [M5: Stacked PRs]
-        S1["Detect stack via gt CLI or GitHub API"] --> S2[Build stack graph: parent/child relationships]
-        S2 --> S3["Stack navigator panel (1/5, 2/5, ...)"]
-        S3 --> S4["Jump between PRs in stack"]
-        S4 --> S5[Diff against parent branch, not main]
-        S5 --> S6[Show cumulative stack diff option]
-        S2 --> S7[Stack overview sidebar tab]
-        S7 --> S8[Per-PR status: draft / review / approved / merged]
-    end
-```
+Stack detection, navigation, pre-fetch caching, and visual stack display.
 
 **Stack detection**
-- Run `gt stack` or parse PR base branches to detect the stack
-- Each PR in a Graphite stack targets its parent PR's branch as the base, not `main`
-- Build an ordered list: `main <- PR#1 <- PR#2 <- PR#3`
+- Auto-detect Graphite stack from PR comments (no `gt` CLI needed)
+- `src/stack/graphite.rs` — comment marker detection + PR link extraction
+- Graphite stack comments filtered from diff view (not shown as comments)
+- `src/stack/mod.rs` — `StackState` with title cache and status cache
 
 **Stack navigation**
-- Show stack position in title bar: `[2/5] ROKT/srs #1234 — Add feature X`
-- `]` / `[` keys to move to next/previous PR in the stack
-- Loading the next PR fetches its diff and comments without quitting
+- `:stack_up` / `:stack_down` commands (typable)
+- `Cmd+Up` / `Cmd+K` and `Cmd+Down` / `Cmd+J` hotkeys (global)
+- `PrCache` stores full PR snapshots (metadata, files, comments, threads)
+- Current PR saved to cache before navigating away, restored on return
+- Diff mode (unified/SBS) preserved across navigation
 
-**Stack-aware diffing**
-- Default: diff each PR against its parent branch (incremental changes only)
-- Toggle: show cumulative diff from `main` to current PR (full picture)
-- Visual indicator when viewing incremental vs cumulative
+**Pre-fetch strategy (dual: REST primary + GraphQL batch)**
+- Primary PR: 4 parallel REST calls (fast, progressive rendering)
+- Stack PRs: 1 GraphQL batch query for metadata + comments + threads,
+  then REST per-PR for file patches (GraphQL lacks patch field)
+- Titles + statuses arrive in ~450ms after comments load
+- Stale event protection: events carry PR number, old-PR events discarded
 
-**Stack overview**
-- Sidebar tab showing the full stack as a vertical list
-- Each PR shows: number, title, review status, CI status
-- Highlight the currently viewed PR
-- Jump to any PR in the stack by selecting it
+**Stack widget (description panel)**
+- Snapped to bottom of description panel, always visible when panel open
+- Shows PR number, title, and colored status indicator per PR
+- Status: ● Open (green), ◌ Draft (gray), ✓ Merged (magenta), ✗ Closed (red)
+- Current PR marked with ▸ and bold text
 
-**CLI changes**
-```
-gh-review ROKT/srs 1234              # single PR (existing)
-gh-review ROKT/srs 1234 --stack      # auto-detect stack, start at this PR
-gh-review ROKT/srs --stack 1234 1235 1236  # explicit stack order
-```
+**Future**
+- Stack-aware diffing (diff against parent branch, not main)
+- Cumulative vs incremental toggle
+- Tree stacks (branches off branches)
 
 ### M6 — Polish (later)
 
@@ -344,15 +337,18 @@ Side-by-side chat panel for discussing code with Claude while reviewing a PR.
 | done | Cross-platform support |
 | done | Remappable keybindings |
 | done | Custom actions |
+| done | PR description panel (view + edit + markdown) |
+| done | Scoped command system (per-panel key dispatch) |
+| done | Panel navigation (h/l/Tab, 3-panel cycle) |
+| done | Graphite stack detection (auto from comments) |
+| done | Stack widget (status indicators, titles) |
+| done | Stack navigation (Cmd+K/J, :stack_up/down) |
+| done | PR cache + GraphQL batch pre-fetch |
+| done | Stale event protection (PR-tagged events) |
+| done | Title bar with colored diff stats |
 | **next** | Claude AI review |
-| planned | PR description panel (view + edit) |
-| planned | Panel navigation (Tab / direct jump) |
-| planned | Stack detection via gt CLI |
-| planned | Stack navigator panel |
-| planned | Jump between stack PRs |
 | planned | Diff against parent branch |
 | planned | Cumulative vs incremental toggle |
-| planned | Stack overview sidebar |
 | later | Word-level diff |
 | later | Custom themes |
 | future | gh-dash-rs native view |
