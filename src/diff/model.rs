@@ -67,6 +67,82 @@ pub enum ExpandDirection {
 }
 
 use super::suggestion;
+use crate::types::DiffLine as HunkLine;
+
+/// Context needed to render an inline suggestion diff (original lines from the hunk).
+struct SuggestionContext<'a> {
+    hunk_lines: &'a [HunkLine],
+    current_line: &'a HunkLine,
+    lineno: usize,
+    start_line: Option<usize>,
+    file_path: &'a str,
+}
+
+/// Emit the expanded body of a comment thread: top padding, markdown body,
+/// optional suggestion diff, replies, bottom padding, and footer.
+///
+/// This is the shared rendering path used by inline threads, pending comments,
+/// and orphan threads.
+#[allow(clippy::too_many_arguments)]
+fn emit_expanded_thread(
+    rows: &mut Vec<DisplayRow>,
+    root_body: &str,
+    replies: &[&ExistingComment],
+    is_resolved: bool,
+    is_pending: bool,
+    root_id: u64,
+    body_max_width: usize,
+    sug_ctx: Option<SuggestionContext>,
+) {
+    rows.push(blank_body_row(is_resolved, is_pending));
+
+    let sug_text = suggestion::extract(root_body);
+    let body_text = if sug_text.is_some() {
+        suggestion::strip_block(root_body)
+    } else {
+        root_body.to_string()
+    };
+
+    if !body_text.trim().is_empty() {
+        let md_lines = render_markdown_to_lines(&body_text);
+        rows.extend(wrap_body_lines(md_lines, body_max_width, false, is_resolved, is_pending));
+    }
+
+    if let Some(ref suggested) = sug_text
+        && let Some(ctx) = &sug_ctx
+    {
+        let original_lines = suggestion::collect_original_lines(
+            ctx.hunk_lines, ctx.current_line, ctx.lineno, ctx.start_line,
+        );
+        rows.extend(suggestion::build_rows(ctx.file_path, &original_lines, suggested, is_resolved));
+    }
+
+    for reply in replies {
+        rows.push(blank_body_row(is_resolved, is_pending));
+        rows.push(DisplayRow::CommentHeader {
+            author: reply.user.login.clone(),
+            is_pending: false,
+            github_id: Some(reply.id),
+            pending_idx: None,
+            thread_root_id: Some(root_id),
+            thread_node_id: None,
+            is_resolved,
+            expanded: true,
+            reply_count: 0,
+            body_preview: String::new(),
+            is_reply: true,
+        });
+        let reply_lines = render_markdown_to_lines(&reply.body);
+        rows.extend(wrap_body_lines(reply_lines, body_max_width, true, is_resolved, is_pending));
+    }
+
+    rows.push(blank_body_row(is_resolved, is_pending));
+    rows.push(DisplayRow::CommentFooter {
+        is_reply: false,
+        is_resolved,
+        is_pending,
+    });
+}
 
 fn render_markdown_to_lines(body: &str) -> Vec<Line<'static>> {
     let text = tui_markdown::from_str(body);
@@ -223,56 +299,23 @@ pub fn build_display_rows(
                         });
 
                         if is_expanded {
-                            rows.push(blank_body_row(is_resolved, false));
-
-                            let sug_text = suggestion::extract(&root.body);
-                            let body_text = if sug_text.is_some() {
-                                suggestion::strip_block(&root.body)
-                            } else {
-                                root.body.clone()
-                            };
-
-                            if !body_text.trim().is_empty() {
-                                let md_lines = render_markdown_to_lines(&body_text);
-                                rows.extend(wrap_body_lines(md_lines, body_max_width, false, is_resolved, false));
-                            }
-
-                            if let Some(ref suggested) = sug_text {
-                                let original_lines = suggestion::collect_original_lines(
-                                    &hunk.lines, line, lineno, root.start_line,
-                                );
-                                rows.extend(suggestion::build_rows(
-                                    &file.path, &original_lines, suggested, is_resolved,
-                                ));
-                            }
-
-                            for reply in thread_comments.iter().skip(1) {
-                                rows.push(blank_body_row(is_resolved, false));
-
-                                rows.push(DisplayRow::CommentHeader {
-                                    author: reply.user.login.clone(),
-                                    is_pending: false,
-                                    github_id: Some(reply.id),
-                                    pending_idx: None,
-                                    thread_root_id: Some(*root_id),
-                                    thread_node_id: None,
-                                    is_resolved,
-                                    expanded: true,
-                                    reply_count: 0,
-                                    body_preview: String::new(),
-                                    is_reply: true,
-                                });
-
-                                let reply_lines = render_markdown_to_lines(&reply.body);
-                                rows.extend(wrap_body_lines(reply_lines, body_max_width, true, is_resolved, false));
-                            }
-
-                            rows.push(blank_body_row(is_resolved, false));
-                            rows.push(DisplayRow::CommentFooter {
-                                is_reply: false,
+                            let replies: Vec<&ExistingComment> = thread_comments.iter().skip(1).copied().collect();
+                            emit_expanded_thread(
+                                &mut rows,
+                                &root.body,
+                                &replies,
                                 is_resolved,
-                                is_pending: false,
-                            });
+                                false,
+                                *root_id,
+                                body_max_width,
+                                Some(SuggestionContext {
+                                    hunk_lines: &hunk.lines,
+                                    current_line: line,
+                                    lineno,
+                                    start_line: root.start_line,
+                                    file_path: &file.path,
+                                }),
+                            );
                         }
                     }
 
@@ -297,35 +340,22 @@ pub fn build_display_rows(
                         });
 
                         if is_expanded {
-                            rows.push(blank_body_row(false, true));
-
-                            let sug_text = suggestion::extract(&pc.body);
-                            let body_text = if sug_text.is_some() {
-                                suggestion::strip_block(&pc.body)
-                            } else {
-                                pc.body.clone()
-                            };
-
-                            if !body_text.trim().is_empty() {
-                                let md_lines = render_markdown_to_lines(&body_text);
-                                rows.extend(wrap_body_lines(md_lines, body_max_width, false, false, true));
-                            }
-
-                            if let Some(ref suggested) = sug_text {
-                                let original_lines = suggestion::collect_original_lines(
-                                    &hunk.lines, line, lineno, None,
-                                );
-                                rows.extend(suggestion::build_rows(
-                                    &file.path, &original_lines, suggested, false,
-                                ));
-                            }
-
-                            rows.push(blank_body_row(false, true));
-                            rows.push(DisplayRow::CommentFooter {
-                                is_reply: false,
-                                is_resolved: false,
-                                is_pending: true,
-                            });
+                            emit_expanded_thread(
+                                &mut rows,
+                                &pc.body,
+                                &[],
+                                false,
+                                true,
+                                0,
+                                body_max_width,
+                                Some(SuggestionContext {
+                                    hunk_lines: &hunk.lines,
+                                    current_line: line,
+                                    lineno,
+                                    start_line: None,
+                                    file_path: &file.path,
+                                }),
+                            );
                         }
                     }
                 }
@@ -377,38 +407,17 @@ pub fn build_display_rows(
             });
 
             if is_expanded {
-                rows.push(blank_body_row(is_resolved, false));
-
-                let md_lines = render_markdown_to_lines(&root.body);
-                rows.extend(wrap_body_lines(md_lines, body_max_width, false, is_resolved, false));
-
-                for reply in thread_comments.iter().skip(1) {
-                    rows.push(blank_body_row(is_resolved, false));
-
-                    rows.push(DisplayRow::CommentHeader {
-                        author: reply.user.login.clone(),
-                        is_pending: false,
-                        github_id: Some(reply.id),
-                        pending_idx: None,
-                        thread_root_id: Some(*root_id),
-                        thread_node_id: None,
-                        is_resolved,
-                        expanded: true,
-                        reply_count: 0,
-                        body_preview: String::new(),
-                        is_reply: true,
-                    });
-
-                    let reply_lines = render_markdown_to_lines(&reply.body);
-                    rows.extend(wrap_body_lines(reply_lines, body_max_width, true, is_resolved, false));
-                }
-
-                rows.push(blank_body_row(is_resolved, false));
-                rows.push(DisplayRow::CommentFooter {
-                    is_reply: false,
+                let replies: Vec<&ExistingComment> = thread_comments.iter().skip(1).copied().collect();
+                emit_expanded_thread(
+                    &mut rows,
+                    &root.body,
+                    &replies,
                     is_resolved,
-                    is_pending: false,
-                });
+                    false,
+                    *root_id,
+                    body_max_width,
+                    None,
+                );
             }
         }
     }

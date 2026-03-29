@@ -124,33 +124,30 @@ pub fn prev_comment(app: &mut App) {
 }
 
 pub fn next_match_or_file(app: &mut App) {
-    if app.diff_view.search.is_active() {
-        let c = match app.search_bar.direction {
-            SearchDirection::Forward => app.diff_view.search.next_match(),
-            SearchDirection::Backward => app.diff_view.search.prev_match(),
-        };
-        if let Some(c) = c {
-            app.diff_view.cursor = c;
-        }
-        app.update_search_status();
-    } else {
-        app.diff_view.next_file();
-    }
-    if let Some(fi) = app.diff_view.current_file_idx() {
-        app.file_picker.selected = fi;
-    }
+    step_match_or_file(app, true);
 }
 
 pub fn prev_match_or_file(app: &mut App) {
+    step_match_or_file(app, false);
+}
+
+fn step_match_or_file(app: &mut App, forward: bool) {
     if app.diff_view.search.is_active() {
-        let c = match app.search_bar.direction {
-            SearchDirection::Forward => app.diff_view.search.prev_match(),
-            SearchDirection::Backward => app.diff_view.search.next_match(),
+        let same_dir = matches!(
+            (forward, app.search_bar.direction),
+            (true, SearchDirection::Forward) | (false, SearchDirection::Backward)
+        );
+        let c = if same_dir {
+            app.diff_view.search.next_match()
+        } else {
+            app.diff_view.search.prev_match()
         };
         if let Some(c) = c {
             app.diff_view.cursor = c;
         }
         app.update_search_status();
+    } else if forward {
+        app.diff_view.next_file();
     } else {
         app.diff_view.prev_file();
     }
@@ -174,8 +171,7 @@ pub fn help(app: &mut App) {
 }
 
 pub fn switch_focus(app: &mut App) {
-    let desc_open = app.description_panel.visible;
-    app.focus = app.focus.next(desc_open);
+    next_panel(app);
 }
 
 pub fn next_panel(app: &mut App) {
@@ -222,42 +218,38 @@ pub fn toggle_comment(app: &mut App) {
 }
 
 pub fn expand_all_comments(app: &mut App) {
-    use crate::diff::renderer::DisplayRow;
-    app.diff_view.expanded_threads.clear();
-    app.diff_view.expanded_pending.clear();
-    for row in &app.diff_view.display_rows {
-        if let DisplayRow::CommentHeader {
-            thread_root_id: Some(root_id),
-            is_resolved: true,
-            ..
-        } = row
-        {
-            app.diff_view.expanded_threads.insert(*root_id);
-        }
-        if let DisplayRow::CommentHeader {
-            is_pending: true,
-            pending_idx: Some(idx),
-            ..
-        } = row
-        {
-            app.diff_view.expanded_pending.insert(*idx);
-        }
-    }
-    app.rebuild_display();
+    set_all_comments_expanded(app, true);
 }
 
 pub fn collapse_all_comments(app: &mut App) {
+    set_all_comments_expanded(app, false);
+}
+
+fn set_all_comments_expanded(app: &mut App, expand: bool) {
     use crate::diff::renderer::DisplayRow;
     app.diff_view.expanded_threads.clear();
     app.diff_view.expanded_pending.clear();
     for row in &app.diff_view.display_rows {
-        if let DisplayRow::CommentHeader {
-            thread_root_id: Some(root_id),
-            is_resolved: false,
-            ..
-        } = row
-        {
-            app.diff_view.expanded_threads.insert(*root_id);
+        match row {
+            // Threads toggle via expanded_threads set: resolved threads
+            // default to collapsed, unresolved to expanded. Adding an id
+            // to the set inverts the default. So to expand all, add resolved
+            // ids; to collapse all, add unresolved ids.
+            DisplayRow::CommentHeader {
+                thread_root_id: Some(root_id),
+                is_resolved,
+                ..
+            } if *is_resolved == expand => {
+                app.diff_view.expanded_threads.insert(*root_id);
+            }
+            DisplayRow::CommentHeader {
+                is_pending: true,
+                pending_idx: Some(idx),
+                ..
+            } if expand => {
+                app.diff_view.expanded_pending.insert(*idx);
+            }
+            _ => {}
         }
     }
     app.rebuild_display();

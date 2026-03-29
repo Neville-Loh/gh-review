@@ -170,29 +170,8 @@ pub async fn reply_to_comment(
     body: &str,
 ) -> Result<()> {
     let url = format!("repos/{repo}/pulls/{pr_number}/comments/{comment_id}/replies");
-    let json_body = serde_json::json!({ "body": body });
-    let json_str = serde_json::to_string(&json_body)?;
-
-    let mut child = Command::new("gh")
-        .args(["api", &url, "-X", "POST", "--input", "-"])
-        .kill_on_drop(true)
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()?;
-
-    use tokio::io::AsyncWriteExt;
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(json_str.as_bytes()).await?;
-    }
-
-    let output = child.wait_with_output().await?;
-    if !output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("{}", format_api_error(&stdout, &stderr));
-    }
-
+    let json_str = serde_json::to_string(&serde_json::json!({ "body": body }))?;
+    run_gh_with_stdin(&["api", &url, "-X", "POST", "--input", "-"], &json_str).await?;
     Ok(())
 }
 
@@ -238,47 +217,24 @@ pub async fn submit_review(
     });
 
     let json_str = serde_json::to_string(&json_body)?;
-    let mut child = Command::new("gh")
-        .args(["api", &url, "-X", "POST", "--input", "-"])
-        .kill_on_drop(true)
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()?;
-
-    use tokio::io::AsyncWriteExt;
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(json_str.as_bytes()).await?;
-    }
-
-    let output = child.wait_with_output().await?;
-    if !output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("{}", format_api_error(&stdout, &stderr));
-    }
-
+    run_gh_with_stdin(&["api", &url, "-X", "POST", "--input", "-"], &json_str).await?;
     Ok(())
 }
 
-async fn run_graphql(query: &str, variables: &serde_json::Value) -> Result<serde_json::Value> {
-    let body = serde_json::json!({
-        "query": query,
-        "variables": variables
-    });
-    let json_str = serde_json::to_string(&body)?;
+/// Send a JSON body to `gh api` via stdin and return the raw output.
+async fn run_gh_with_stdin(args: &[&str], json_body: &str) -> Result<Vec<u8>> {
+    use tokio::io::AsyncWriteExt;
 
     let mut child = Command::new("gh")
-        .args(["api", "graphql", "--input", "-"])
+        .args(args)
         .kill_on_drop(true)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()?;
 
-    use tokio::io::AsyncWriteExt;
     if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(json_str.as_bytes()).await?;
+        stdin.write_all(json_body.as_bytes()).await?;
     }
 
     let output = child.wait_with_output().await?;
@@ -288,9 +244,14 @@ async fn run_graphql(query: &str, variables: &serde_json::Value) -> Result<serde
         bail!("{}", format_api_error(&stdout, &stderr));
     }
 
-    let result: serde_json::Value =
-        serde_json::from_slice(&output.stdout).context("Failed to parse GraphQL response")?;
-    Ok(result)
+    Ok(output.stdout)
+}
+
+async fn run_graphql(query: &str, variables: &serde_json::Value) -> Result<serde_json::Value> {
+    let body = serde_json::json!({ "query": query, "variables": variables });
+    let json_str = serde_json::to_string(&body)?;
+    let stdout = run_gh_with_stdin(&["api", "graphql", "--input", "-"], &json_str).await?;
+    serde_json::from_slice(&stdout).context("Failed to parse GraphQL response")
 }
 
 /// Batch-fetch full PR data for multiple PRs in a single GraphQL call.
@@ -585,27 +546,7 @@ pub async fn apply_suggestion(
         "branch": branch,
     });
     let json_str = serde_json::to_string(&json_body)?;
-
-    let mut child = Command::new("gh")
-        .args(["api", &update_url, "-X", "PUT", "--input", "-"])
-        .kill_on_drop(true)
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()?;
-
-    use tokio::io::AsyncWriteExt;
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(json_str.as_bytes()).await?;
-    }
-
-    let output = child.wait_with_output().await?;
-    if !output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("{}", format_api_error(&stdout, &stderr));
-    }
-
+    run_gh_with_stdin(&["api", &update_url, "-X", "PUT", "--input", "-"], &json_str).await?;
     Ok(())
 }
 
@@ -616,28 +557,7 @@ pub async fn dismiss_review(
     message: &str,
 ) -> Result<()> {
     let url = format!("repos/{repo}/pulls/{pr_number}/reviews/{review_id}/dismissals");
-    let json_body = serde_json::json!({ "message": message });
-    let json_str = serde_json::to_string(&json_body)?;
-
-    let mut child = Command::new("gh")
-        .args(["api", &url, "-X", "PUT", "--input", "-"])
-        .kill_on_drop(true)
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()?;
-
-    use tokio::io::AsyncWriteExt;
-    if let Some(mut stdin) = child.stdin.take() {
-        stdin.write_all(json_str.as_bytes()).await?;
-    }
-
-    let output = child.wait_with_output().await?;
-    if !output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("{}", format_api_error(&stdout, &stderr));
-    }
-
+    let json_str = serde_json::to_string(&serde_json::json!({ "message": message }))?;
+    run_gh_with_stdin(&["api", &url, "-X", "PUT", "--input", "-"], &json_str).await?;
     Ok(())
 }

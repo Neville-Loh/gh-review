@@ -98,8 +98,6 @@ pub struct App {
     pub(crate) config: Config,
     pub(crate) keymap: keymap::Keymap,
     pub(crate) tx: mpsc::UnboundedSender<AppEvent>,
-    /// Tracks how many of the 4 initial load events have arrived.
-    primary_load_count: u8,
 }
 
 impl App {
@@ -142,7 +140,6 @@ impl App {
             config,
             keymap,
             tx,
-            primary_load_count: 0,
         }
     }
 
@@ -151,57 +148,39 @@ impl App {
     }
 
     pub fn start_loading(&self) {
-        let tx = self.tx.clone();
         let repo = self.repo.clone();
         let pr = self.pr_number;
 
-        tokio::spawn(async move {
-            match crate::gh::fetch_pr_metadata(&repo, pr).await {
-                Ok(meta) => {
-                    let _ = tx.send(AppEvent::PrLoaded { pr, data: Box::new(meta) });
-                }
-                Err(e) => {
-                    let _ = tx.send(AppEvent::Error(format!("Failed to load PR: {e}")));
-                }
-            }
-        });
+        self.spawn_fetch("PR", |r, p| Box::pin(async move {
+            crate::gh::fetch_pr_metadata(&r, p).await
+                .map(|meta| AppEvent::PrLoaded { pr: p, data: Box::new(meta) })
+        }));
+        self.spawn_fetch("files", |r, p| Box::pin(async move {
+            crate::gh::fetch_pr_files(&r, p).await
+                .map(|files| AppEvent::FilesLoaded { pr: p, data: files })
+        }));
+        self.spawn_fetch("comments", |r, p| Box::pin(async move {
+            crate::gh::fetch_review_comments(&r, p).await
+                .map(|c| AppEvent::CommentsLoaded { pr: p, data: c })
+        }));
+        self.spawn_fetch("threads", |r, p| Box::pin(async move {
+            crate::gh::fetch_review_threads(&r, p).await
+                .map(|t| AppEvent::ThreadsLoaded { pr: p, data: t })
+        }));
+        let _ = (repo, pr); // used by closures above via self
+    }
 
-        let tx2 = self.tx.clone();
-        let repo2 = self.repo.clone();
+    fn spawn_fetch<F>(&self, label: &'static str, make_future: F)
+    where
+        F: FnOnce(String, u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<AppEvent>> + Send>> + Send + 'static,
+    {
+        let tx = self.tx.clone();
+        let repo = self.repo.clone();
+        let pr = self.pr_number;
         tokio::spawn(async move {
-            match crate::gh::fetch_pr_files(&repo2, pr).await {
-                Ok(files) => {
-                    let _ = tx2.send(AppEvent::FilesLoaded { pr, data: files });
-                }
-                Err(e) => {
-                    let _ = tx2.send(AppEvent::Error(format!("Failed to load files: {e}")));
-                }
-            }
-        });
-
-        let tx3 = self.tx.clone();
-        let repo3 = self.repo.clone();
-        tokio::spawn(async move {
-            match crate::gh::fetch_review_comments(&repo3, pr).await {
-                Ok(comments) => {
-                    let _ = tx3.send(AppEvent::CommentsLoaded { pr, data: comments });
-                }
-                Err(e) => {
-                    let _ = tx3.send(AppEvent::Error(format!("Failed to load comments: {e}")));
-                }
-            }
-        });
-
-        let tx4 = self.tx.clone();
-        let repo4 = self.repo.clone();
-        tokio::spawn(async move {
-            match crate::gh::fetch_review_threads(&repo4, pr).await {
-                Ok(threads) => {
-                    let _ = tx4.send(AppEvent::ThreadsLoaded { pr, data: threads });
-                }
-                Err(e) => {
-                    let _ = tx4.send(AppEvent::Error(format!("Failed to load threads: {e}")));
-                }
+            match make_future(repo, pr).await {
+                Ok(event) => { let _ = tx.send(event); }
+                Err(e) => { let _ = tx.send(AppEvent::Error(format!("Failed to load {label}: {e}"))); }
             }
         });
     }
@@ -216,14 +195,12 @@ impl App {
                 self.stack.insert_titles(&[(self.pr_number, meta.title.clone())]);
                 self.pr_meta = Some(*meta);
                 self.loading = false;
-                self.check_primary_ready();
             }
             AppEvent::FilesLoaded { pr, data: files } if pr == self.pr_number => {
                 self.file_picker.set_files(&files);
                 self.files = files;
                 self.rebuild_display();
                 self.loading = false;
-                self.check_primary_ready();
             }
             AppEvent::CommentsLoaded { pr, data: comments } if pr == self.pr_number => {
                 self.stack.load_from_comments(&comments, self.pr_number);
@@ -232,19 +209,16 @@ impl App {
                 }
                 self.existing_comments = comments;
                 self.rebuild_display();
-                self.check_primary_ready();
             }
             AppEvent::ThreadsLoaded { pr, data: threads } if pr == self.pr_number => {
                 self.thread_map = threads;
                 self.rebuild_display();
-                self.check_primary_ready();
             }
             // Stale events from a previously active PR -- discard
             AppEvent::PrLoaded { .. }
             | AppEvent::FilesLoaded { .. }
             | AppEvent::CommentsLoaded { .. }
             | AppEvent::ThreadsLoaded { .. } => {}
-            AppEvent::StackTitlesLoaded(_) => {}
             AppEvent::StackPrefetchLoaded(snapshots) => {
                 for (pr_number, snapshot) in snapshots {
                     self.stack.insert_titles(&[(pr_number, snapshot.meta.title.clone())]);
@@ -296,10 +270,6 @@ impl App {
             &self.pending_comments,
             &self.thread_map,
         );
-    }
-
-    fn check_primary_ready(&mut self) {
-        self.primary_load_count += 1;
     }
 
     fn prefetch_stack(&self) {
@@ -406,7 +376,6 @@ impl App {
             self.diff_view = crate::components::diff_view::DiffView::new();
             self.diff_view.mode = mode;
             self.stack.current_pr = pr_number;
-            self.primary_load_count = 0;
             self.loading = true;
             self.status.info(format!("Loading PR #{pr_number}..."));
             self.start_loading();
