@@ -6,9 +6,9 @@ use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug)]
-#[allow(dead_code)]
 pub enum AppEvent {
     Key(KeyEvent),
+    #[allow(dead_code)]
     Resize(u16, u16),
     Tick,
 
@@ -25,7 +25,6 @@ pub enum AppEvent {
     ReviewDismissed,
     SuggestionAccepted,
     ReviewSubmitted,
-    StackTitlesLoaded(Vec<(u64, String)>),
     StackPrefetchLoaded(std::collections::HashMap<u64, crate::stack::PrSnapshot>),
     CustomActionComplete {
         description: String,

@@ -77,10 +77,10 @@ mod tests {
 > [!WARNING]
 > <b>This pull request is not mergeable via GitHub because a downstack PR is open.</b>
 
-* **#12840** <a href="https://app.graphite.com/github/pr/ROKT/srs/12840?utm_source=stack-comment-icon" target="_blank">View</a> 👈
-* **#12839** <a href="https://app.graphite.com/github/pr/ROKT/srs/12839?utm_source=stack-comment-icon" target="_blank">View</a>
-* **#12838** <a href="https://app.graphite.com/github/pr/ROKT/srs/12838?utm_source=stack-comment-icon" target="_blank">View</a>
-* **#12837** <a href="https://app.graphite.com/github/pr/ROKT/srs/12837?utm_source=stack-comment-icon" target="_blank">View</a>
+* **#104** <a href="https://app.graphite.com/github/pr/acme/widgets/104?utm_source=stack-comment-icon" target="_blank">View</a> 👈
+* **#103** <a href="https://app.graphite.com/github/pr/acme/widgets/103?utm_source=stack-comment-icon" target="_blank">View</a>
+* **#102** <a href="https://app.graphite.com/github/pr/acme/widgets/102?utm_source=stack-comment-icon" target="_blank">View</a>
+* **#101** <a href="https://app.graphite.com/github/pr/acme/widgets/101?utm_source=stack-comment-icon" target="_blank">View</a>
 * `main`
 
 This stack of pull requests is managed by <a href="https://graphite.dev?utm-source=stack-comment"><b>Graphite</b></a>. Learn more about <a href="https://stacking.dev/?utm_source=stack-comment">stacking</a>.
@@ -115,12 +115,12 @@ This stack of pull requests is managed by <a href="https://graphite.dev?utm-sour
     fn extracts_pr_links_from_real_comment() {
         let links = extract_pr_links(REAL_GRAPHITE_COMMENT);
         assert_eq!(links.len(), 4);
-        assert_eq!(links[0].pr_number, 12837);
-        assert_eq!(links[0].owner, "ROKT");
-        assert_eq!(links[0].repo, "srs");
-        assert_eq!(links[1].pr_number, 12838);
-        assert_eq!(links[2].pr_number, 12839);
-        assert_eq!(links[3].pr_number, 12840);
+        assert_eq!(links[0].pr_number, 101);
+        assert_eq!(links[0].owner, "acme");
+        assert_eq!(links[0].repo, "widgets");
+        assert_eq!(links[1].pr_number, 102);
+        assert_eq!(links[2].pr_number, 103);
+        assert_eq!(links[3].pr_number, 104);
     }
 
     #[test]

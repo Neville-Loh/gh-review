@@ -46,15 +46,6 @@ impl StackState {
         self.links = graphite::extract_stack(comments);
     }
 
-    /// Returns `(repo_slug, pr_number)` pairs for PRs not yet in the cache.
-    pub fn uncached_prs(&self) -> Vec<(String, u64)> {
-        self.links
-            .iter()
-            .filter(|l| !self.cache.contains_key(&l.pr_number))
-            .map(|l| (format!("{}/{}", l.owner, l.repo), l.pr_number))
-            .collect()
-    }
-
     /// Store fetched titles into the cache.
     pub fn insert_titles(&mut self, titles: &[(u64, String)]) {
         for (pr_number, title) in titles {
@@ -87,13 +78,6 @@ impl StackState {
         }
     }
 
-    /// Repo slug for a given PR number.
-    pub fn repo_for(&self, pr_number: u64) -> Option<String> {
-        self.links
-            .iter()
-            .find(|l| l.pr_number == pr_number)
-            .map(|l| format!("{}/{}", l.owner, l.repo))
-    }
 }
 
 // ── PrCache ──────────────────────────────────────────────────────────

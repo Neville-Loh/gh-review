@@ -250,81 +250,9 @@ impl DescriptionPanel {
 
     pub fn rebuild_content(&mut self, width: u16) {
         let max_w = width.saturating_sub(2) as usize;
-        let mut lines = Vec::new();
-
-        // Title: bold white, wrapped to fit
-        for wl in wrap_text(&self.title, max_w) {
-            lines.push(ContentLine {
-                line: Line::from(Span::styled(
-                    wl,
-                    Style::default()
-                        .fg(Color::White)
-                        .add_modifier(Modifier::BOLD),
-                )),
-                region: CursorRegion::Title,
-            });
-        }
-
-        // Thin separator under the title
-        lines.push(ContentLine {
-            line: Line::from(Span::styled(
-                "─".repeat(max_w.min(40)),
-                Style::default().fg(Color::DarkGray),
-            )),
-            region: CursorRegion::Title,
-        });
-
-        // Blank line before body
-        lines.push(ContentLine {
-            line: Line::default(),
-            region: CursorRegion::Title,
-        });
-
+        let mut lines = build_title_lines(&self.title, max_w);
         let body_start = lines.len();
-
-        // Body (markdown, wrapped)
-        if self.body.trim().is_empty() {
-            lines.push(ContentLine {
-                line: Line::from(Span::styled(
-                    "No description provided.",
-                    Style::default()
-                        .fg(Color::DarkGray)
-                        .add_modifier(Modifier::ITALIC),
-                )),
-                region: CursorRegion::Body,
-            });
-        } else {
-            let md_rendered = tui_markdown::from_str(&self.body);
-            for md_line in md_rendered.lines {
-                let line_style = md_line.style;
-                let text: String = md_line.spans.iter().map(|s| s.content.as_ref()).collect();
-                if text.width() <= max_w {
-                    let spans: Vec<Span> = md_line
-                        .spans
-                        .into_iter()
-                        .map(|s| Span::styled(s.content.to_string(), s.style))
-                        .collect();
-                    lines.push(ContentLine {
-                        line: Line::from(spans).style(line_style),
-                        region: CursorRegion::Body,
-                    });
-                } else {
-                    for wl in crate::diff::wrap::wrap_spans(
-                        &md_line
-                            .spans
-                            .into_iter()
-                            .map(|s| Span::styled(s.content.to_string(), s.style))
-                            .collect::<Vec<_>>(),
-                        max_w,
-                    ) {
-                        lines.push(ContentLine {
-                            line: wl.style(line_style),
-                            region: CursorRegion::Body,
-                        });
-                    }
-                }
-            }
-        }
+        lines.extend(build_body_lines(&self.body, max_w));
 
         self.body_start = body_start;
         self.content_lines = lines;
@@ -332,6 +260,68 @@ impl DescriptionPanel {
             self.cursor = self.content_lines.len().saturating_sub(1);
         }
     }
+}
+
+fn build_title_lines(title: &str, max_w: usize) -> Vec<ContentLine> {
+    let mut lines = Vec::new();
+    for wl in wrap_text(title, max_w) {
+        lines.push(ContentLine {
+            line: Line::from(Span::styled(
+                wl,
+                Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+            )),
+            region: CursorRegion::Title,
+        });
+    }
+    lines.push(ContentLine {
+        line: Line::from(Span::styled(
+            "─".repeat(max_w.min(40)),
+            Style::default().fg(Color::DarkGray),
+        )),
+        region: CursorRegion::Title,
+    });
+    lines.push(ContentLine {
+        line: Line::default(),
+        region: CursorRegion::Title,
+    });
+    lines
+}
+
+fn build_body_lines(body: &str, max_w: usize) -> Vec<ContentLine> {
+    if body.trim().is_empty() {
+        return vec![ContentLine {
+            line: Line::from(Span::styled(
+                "No description provided.",
+                Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC),
+            )),
+            region: CursorRegion::Body,
+        }];
+    }
+    let mut lines = Vec::new();
+    let md_rendered = tui_markdown::from_str(body);
+    for md_line in md_rendered.lines {
+        let line_style = md_line.style;
+        let text: String = md_line.spans.iter().map(|s| s.content.as_ref()).collect();
+        let owned_spans: Vec<Span> = md_line
+            .spans
+            .into_iter()
+            .map(|s| Span::styled(s.content.to_string(), s.style))
+            .collect();
+        if text.width() <= max_w {
+            lines.push(ContentLine {
+                line: Line::from(owned_spans).style(line_style),
+                region: CursorRegion::Body,
+            });
+        } else {
+            for wl in crate::diff::wrap::wrap_spans(&owned_spans, max_w) {
+                lines.push(ContentLine {
+                    line: wl.style(line_style),
+                    region: CursorRegion::Body,
+                });
+            }
+        }
+    }
+    lines
 }
 
 fn wrap_text(text: &str, max_width: usize) -> Vec<String> {
