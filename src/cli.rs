@@ -162,9 +162,9 @@ mod tests {
     #[test]
     fn parse_graphite_url_standard() {
         let (repo, pr) =
-            parse_graphite_url("https://app.graphite.com/github/pr/ROKT/srs/12569").unwrap();
-        assert_eq!(repo, "ROKT/srs");
-        assert_eq!(pr, 12569);
+            parse_graphite_url("https://app.graphite.com/github/pr/acme/widgets/42").unwrap();
+        assert_eq!(repo, "acme/widgets");
+        assert_eq!(pr, 42);
     }
 
     #[test]
@@ -255,11 +255,11 @@ mod tests {
     #[test]
     fn resolve_graphite_url() {
         let (repo, pr) = resolve(vec![
-            "https://app.graphite.com/github/pr/ROKT/srs/12569".into(),
+            "https://app.graphite.com/github/pr/acme/widgets/42".into(),
         ])
         .unwrap();
-        assert_eq!(repo, "ROKT/srs");
-        assert_eq!(pr, 12569);
+        assert_eq!(repo, "acme/widgets");
+        assert_eq!(pr, 42);
     }
 
     #[test]
