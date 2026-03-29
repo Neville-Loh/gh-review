@@ -487,14 +487,16 @@ impl Keymap {
 
         // ── Jumps (diff + description) ────────────────────────────────
         defs.extend([
-            B::multi(vec![Single(']'.into()), Single('}'.into())], vec![
+            B::multi(vec![Single(']'.into())], vec![
                 S::on(Diff, &command::next_hunk),
                 S::on(Description, &command::desc_next_section),
             ]),
-            B::multi(vec![Single('['.into()), Single('{'.into())], vec![
+            B::multi(vec![Single('['.into())], vec![
                 S::on(Diff, &command::prev_hunk),
                 S::on(Description, &command::desc_prev_section),
             ]),
+            B::diff(&command::next_paragraph, vec![Single('}'.into())]),
+            B::diff(&command::prev_paragraph, vec![Single('{'.into())]),
             B::diff(&command::next_change, vec![Single(')'.into())]),
             B::diff(&command::prev_change, vec![Single('('.into())]),
         ]);

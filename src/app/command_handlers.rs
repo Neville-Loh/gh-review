@@ -123,6 +123,14 @@ pub fn prev_comment(app: &mut App) {
     app.diff_view.prev_comment();
 }
 
+pub fn next_paragraph(app: &mut App) {
+    app.diff_view.next_paragraph();
+}
+
+pub fn prev_paragraph(app: &mut App) {
+    app.diff_view.prev_paragraph();
+}
+
 pub fn next_match_or_file(app: &mut App) {
     step_match_or_file(app, true);
 }

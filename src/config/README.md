@@ -93,8 +93,10 @@ Only include the ones you want to change.
 | `center_cursor`       | `zz`              | Center cursor in viewport         |
 | `scroll_cursor_top`   | `zt`              | Scroll cursor to top              |
 | `scroll_cursor_bottom`| `zb`              | Scroll cursor to bottom           |
-| `next_hunk`           | `]`, `}`          | Jump to next hunk                 |
-| `prev_hunk`           | `[`, `{`          | Jump to previous hunk             |
+| `next_hunk`           | `]`               | Jump to next hunk                 |
+| `prev_hunk`           | `[`               | Jump to previous hunk             |
+| `next_paragraph`      | `}`               | Jump to next boundary (vim `}`)   |
+| `prev_paragraph`      | `{`               | Jump to previous boundary (vim `{`) |
 | `next_change`         | `)`               | Jump to next change               |
 | `prev_change`         | `(`               | Jump to previous change           |
 | `next_comment`        | `gc`              | Jump to next comment thread       |
@@ -160,13 +162,22 @@ Only include the ones you want to change.
 | `desc_page_up`        | `Ctrl-u`, `Ctrl-b`| Page up in description            |
 | `desc_goto_first`     | `gg`              | Go to top of description          |
 | `desc_goto_last`      | `G`               | Go to bottom of description       |
-| `desc_next_section`   | `]`, `}`          | Jump to body section              |
-| `desc_prev_section`   | `[`, `{`          | Jump to title section             |
+| `desc_next_section`   | `]`               | Jump to body section              |
+| `desc_prev_section`   | `[`               | Jump to title section             |
 | `desc_close`          | `Esc`             | Close description panel           |
 
 Navigation keys like `j`/`k`/`gg`/`G` work in all panels but dispatch to
 panel-specific commands. For example, `j` calls `scroll_down` in the diff,
 `picker_down` in the file list, and `desc_scroll_down` in the description.
+
+### Stack Navigation
+
+| Action                | Default                   | Description                       |
+|-----------------------|---------------------------|-----------------------------------|
+| `stack_up`            | `Cmd-Up`, `Cmd-k`        | Navigate to PR above in stack     |
+| `stack_down`          | `Cmd-Down`, `Cmd-j`      | Navigate to PR below in stack     |
+
+Stack navigation is global — works from any panel.
 
 ### File Picker
 
@@ -189,6 +200,8 @@ You can assign a hotkey in your config:
 [keys]
 request_changes = "Ctrl-r"
 expand_all_comments = "Alt-e"
+stack_up = "Ctrl-p"
+stack_down = "Ctrl-n"
 ```
 
 ## Aliases

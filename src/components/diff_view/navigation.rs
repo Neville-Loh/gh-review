@@ -233,4 +233,47 @@ impl DiffView {
             }
         }
     }
+
+    /// Jump to the next blank line in the diff content.
+    /// Like vim `}` — skip non-blank lines, land on the next blank one.
+    pub fn next_paragraph(&mut self) {
+        let start = self.cursor + 1;
+        let mut was_blank = Self::is_blank_row(&self.display_rows, self.cursor);
+        for i in start..self.display_rows.len() {
+            let blank = Self::is_blank_row(&self.display_rows, i);
+            if blank && !was_blank {
+                self.cursor = i;
+                return;
+            }
+            was_blank = blank;
+        }
+        self.cursor = self.display_rows.len().saturating_sub(1);
+    }
+
+    /// Jump to the previous blank line in the diff content.
+    /// Like vim `{` — skip non-blank lines backwards, land on blank.
+    pub fn prev_paragraph(&mut self) {
+        if self.cursor == 0 {
+            return;
+        }
+        let mut was_blank = Self::is_blank_row(&self.display_rows, self.cursor);
+        for i in (0..self.cursor).rev() {
+            let blank = Self::is_blank_row(&self.display_rows, i);
+            if blank && !was_blank {
+                self.cursor = i;
+                return;
+            }
+            was_blank = blank;
+        }
+        self.cursor = 0;
+    }
+
+    fn is_blank_row(rows: &[DisplayRow], idx: usize) -> bool {
+        match rows.get(idx) {
+            Some(DisplayRow::DiffLine { line, .. }) => line.content.trim().is_empty(),
+            Some(DisplayRow::FileHeader { .. })
+            | Some(DisplayRow::HunkHeader { .. }) => true,
+            _ => false,
+        }
+    }
 }
