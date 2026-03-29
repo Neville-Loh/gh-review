@@ -140,6 +140,8 @@ pub struct PrMetadata {
     pub title: String,
     pub body: Option<String>,
     pub state: String,
+    #[serde(default)]
+    pub draft: bool,
     pub head: PrRef,
     pub base: PrRef,
     pub user: PrUser,

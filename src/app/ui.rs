@@ -137,18 +137,39 @@ impl App {
     }
 
     fn draw_title(&self, frame: &mut Frame, area: Rect) {
-        let title = if let Some(ref meta) = self.pr_meta {
-            format!(
-                " {} #{} — {} ({}→{})",
-                self.repo, meta.number, meta.title, meta.base.ref_name, meta.head.ref_name
-            )
+        use ratatui::style::Color;
+
+        let spans = if let Some(ref meta) = self.pr_meta {
+            let mut s = vec![Span::styled(
+                format!(" {} #{} — {} ", self.repo, meta.number, meta.title),
+                crate::theme::Theme::title(),
+            )];
+            if let Some(additions) = meta.additions {
+                s.push(Span::styled(
+                    format!("+{additions}"),
+                    ratatui::style::Style::default().fg(Color::Green),
+                ));
+            }
+            if let Some(deletions) = meta.deletions {
+                s.push(Span::styled(
+                    format!("/-{deletions}"),
+                    ratatui::style::Style::default().fg(Color::Red),
+                ));
+            }
+            s
         } else if self.loading {
-            format!(" {} #{} — Loading...", self.repo, self.pr_number)
+            vec![Span::styled(
+                format!(" {} #{} — Loading...", self.repo, self.pr_number),
+                crate::theme::Theme::title(),
+            )]
         } else {
-            format!(" {} #{}", self.repo, self.pr_number)
+            vec![Span::styled(
+                format!(" {} #{}", self.repo, self.pr_number),
+                crate::theme::Theme::title(),
+            )]
         };
 
-        let line = Line::from(vec![Span::styled(title, crate::theme::Theme::title())]);
+        let line = Line::from(spans);
         let bar = Paragraph::new(line).style(crate::theme::Theme::review_bar());
         Widget::render(bar, area, frame.buffer_mut());
     }
