@@ -14,6 +14,7 @@ use ratatui::{
 };
 use unicode_width::UnicodeWidthStr;
 
+use crate::stack::StackState;
 use crate::theme::Theme;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -104,7 +105,7 @@ impl DescriptionPanel {
             .unwrap_or(CursorRegion::Title)
     }
 
-    pub fn draw(&mut self, area: Rect, buf: &mut Buffer, focused: bool) {
+    pub fn draw(&mut self, area: Rect, buf: &mut Buffer, focused: bool, stack: &StackState) {
         let border_style = if focused {
             Theme::border_focused()
         } else {
@@ -128,7 +129,15 @@ impl DescriptionPanel {
             self.rebuild_content(inner.width);
         }
 
-        let visible_height = inner.height as usize;
+        // Reserve space at the bottom for the stack indicator
+        let stack_height = if stack.is_empty() {
+            0u16
+        } else {
+            (stack.links.len() as u16 + 3).min(inner.height / 2)
+        };
+        let content_height = inner.height.saturating_sub(stack_height);
+
+        let visible_height = content_height as usize;
         self.ensure_visible(visible_height);
 
         let end = (self.scroll_offset + visible_height).min(self.content_lines.len());
@@ -136,6 +145,12 @@ impl DescriptionPanel {
         for (screen_y, idx) in (self.scroll_offset..end).enumerate() {
             let y = inner.y + screen_y as u16;
             self.render_line(idx, inner.x, y, inner.width, focused, buf);
+        }
+
+        // Render stack indicator at the bottom
+        if stack_height > 0 {
+            let stack_y = inner.y + content_height;
+            Self::render_stack(stack, inner.x, stack_y, inner.width, stack_height, buf);
         }
     }
 
@@ -160,6 +175,68 @@ impl DescriptionPanel {
             buf.set_line(x, y, &Line::from(spans), width);
         } else {
             buf.set_line(x, y, &cl.line, width);
+        }
+    }
+
+    fn render_stack(stack: &StackState, x: u16, y: u16, width: u16, height: u16, buf: &mut Buffer) {
+        let mut row = 0u16;
+
+        // Separator line
+        if row < height {
+            let sep_label = " Stack ";
+            let side_len = (width as usize).saturating_sub(sep_label.len()) / 2;
+            let sep = format!(
+                "{}{}{}",
+                "─".repeat(side_len),
+                sep_label,
+                "─".repeat(side_len),
+            );
+            buf.set_line(
+                x,
+                y + row,
+                &Line::from(Span::styled(sep, Style::default().fg(Color::DarkGray))),
+                width,
+            );
+            row += 1;
+        }
+
+        // PR list (newest first -- already sorted ascending, render in reverse)
+        for pr in stack.links.iter().rev() {
+            if row >= height {
+                break;
+            }
+            let is_current = pr.pr_number == stack.current_pr;
+            let indicator = if is_current { "▸" } else { " " };
+            let name = stack
+                .title(pr.pr_number)
+                .unwrap_or("")
+                .chars()
+                .take((width as usize).saturating_sub(10))
+                .collect::<String>();
+            let label = if name.is_empty() {
+                format!("{indicator} #{}", pr.pr_number)
+            } else {
+                format!("{indicator} #{} {name}", pr.pr_number)
+            };
+            let style = if is_current {
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::DarkGray)
+            };
+            buf.set_line(x, y + row, &Line::from(Span::styled(label, style)), width);
+            row += 1;
+        }
+
+        // "main" at the bottom
+        if row < height {
+            buf.set_line(
+                x,
+                y + row,
+                &Line::from(Span::styled("  main", Style::default().fg(Color::DarkGray))),
+                width,
+            );
         }
     }
 

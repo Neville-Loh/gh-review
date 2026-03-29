@@ -133,6 +133,10 @@ define_commands! {
     desc_prev_section,    "Description: prev section",     false;
     desc_close,           "Close description panel",       false;
 
+    // Stack navigation
+    stack_up,             "Navigate to PR above in stack", true;
+    stack_down,           "Navigate to PR below in stack", true;
+
     // Quick review shortcuts
     lgtm,                 "Approve with LGTM",             true;
 

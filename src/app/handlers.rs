@@ -347,7 +347,7 @@ impl App {
                 Ok(()) => {
                     let _ = tx.send(AppEvent::ReviewSubmitted);
                     if let Ok(comments) = crate::gh::fetch_review_comments(&repo, pr).await {
-                        let _ = tx.send(AppEvent::CommentsLoaded(comments));
+                        let _ = tx.send(AppEvent::CommentsLoaded { pr, data: comments });
                     }
                 }
                 Err(e) => {

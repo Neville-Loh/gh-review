@@ -79,6 +79,8 @@ pub struct App {
     pub(crate) file_picker: FilePicker,
     pub(crate) diff_view: DiffView,
     pub(crate) description_panel: DescriptionPanel,
+    pub(crate) stack: crate::stack::StackState,
+    pub(crate) pr_cache: crate::stack::PrCache,
     pub(crate) comment_input: CommentInput,
     pub(crate) review_confirm: ReviewConfirm,
     pub(crate) search_bar: SearchBar,
@@ -96,6 +98,8 @@ pub struct App {
     pub(crate) config: Config,
     pub(crate) keymap: keymap::Keymap,
     pub(crate) tx: mpsc::UnboundedSender<AppEvent>,
+    /// Tracks how many of the 4 initial load events have arrived.
+    primary_load_count: u8,
 }
 
 impl App {
@@ -121,6 +125,8 @@ impl App {
             file_picker: FilePicker::new(),
             diff_view: DiffView::new(),
             description_panel: DescriptionPanel::new(),
+            stack: crate::stack::StackState::empty(),
+            pr_cache: crate::stack::PrCache::new(),
             comment_input: CommentInput::new(),
             review_confirm: ReviewConfirm::new(),
             search_bar: SearchBar::new(),
@@ -136,6 +142,7 @@ impl App {
             config,
             keymap,
             tx,
+            primary_load_count: 0,
         }
     }
 
@@ -151,7 +158,7 @@ impl App {
         tokio::spawn(async move {
             match crate::gh::fetch_pr_metadata(&repo, pr).await {
                 Ok(meta) => {
-                    let _ = tx.send(AppEvent::PrLoaded(Box::new(meta)));
+                    let _ = tx.send(AppEvent::PrLoaded { pr, data: Box::new(meta) });
                 }
                 Err(e) => {
                     let _ = tx.send(AppEvent::Error(format!("Failed to load PR: {e}")));
@@ -164,7 +171,7 @@ impl App {
         tokio::spawn(async move {
             match crate::gh::fetch_pr_files(&repo2, pr).await {
                 Ok(files) => {
-                    let _ = tx2.send(AppEvent::FilesLoaded(files));
+                    let _ = tx2.send(AppEvent::FilesLoaded { pr, data: files });
                 }
                 Err(e) => {
                     let _ = tx2.send(AppEvent::Error(format!("Failed to load files: {e}")));
@@ -177,7 +184,7 @@ impl App {
         tokio::spawn(async move {
             match crate::gh::fetch_review_comments(&repo3, pr).await {
                 Ok(comments) => {
-                    let _ = tx3.send(AppEvent::CommentsLoaded(comments));
+                    let _ = tx3.send(AppEvent::CommentsLoaded { pr, data: comments });
                 }
                 Err(e) => {
                     let _ = tx3.send(AppEvent::Error(format!("Failed to load comments: {e}")));
@@ -190,7 +197,7 @@ impl App {
         tokio::spawn(async move {
             match crate::gh::fetch_review_threads(&repo4, pr).await {
                 Ok(threads) => {
-                    let _ = tx4.send(AppEvent::ThreadsLoaded(threads));
+                    let _ = tx4.send(AppEvent::ThreadsLoaded { pr, data: threads });
                 }
                 Err(e) => {
                     let _ = tx4.send(AppEvent::Error(format!("Failed to load threads: {e}")));
@@ -204,24 +211,45 @@ impl App {
             AppEvent::Key(key) => self.handle_key(key),
             AppEvent::Resize(_, _) => {}
             AppEvent::Tick => {}
-            AppEvent::PrLoaded(meta) => {
+            AppEvent::PrLoaded { pr, data: meta } if pr == self.pr_number => {
                 self.description_panel.load(&meta.title, meta.body.as_deref());
+                self.stack.insert_titles(&[(self.pr_number, meta.title.clone())]);
                 self.pr_meta = Some(*meta);
                 self.loading = false;
+                self.check_primary_ready();
             }
-            AppEvent::FilesLoaded(files) => {
+            AppEvent::FilesLoaded { pr, data: files } if pr == self.pr_number => {
                 self.file_picker.set_files(&files);
                 self.files = files;
                 self.rebuild_display();
                 self.loading = false;
+                self.check_primary_ready();
             }
-            AppEvent::CommentsLoaded(comments) => {
+            AppEvent::CommentsLoaded { pr, data: comments } if pr == self.pr_number => {
+                self.stack.load_from_comments(&comments, self.pr_number);
+                if !self.stack.is_empty() {
+                    self.prefetch_stack();
+                }
                 self.existing_comments = comments;
                 self.rebuild_display();
+                self.check_primary_ready();
             }
-            AppEvent::ThreadsLoaded(threads) => {
+            AppEvent::ThreadsLoaded { pr, data: threads } if pr == self.pr_number => {
                 self.thread_map = threads;
                 self.rebuild_display();
+                self.check_primary_ready();
+            }
+            // Stale events from a previously active PR -- discard
+            AppEvent::PrLoaded { .. }
+            | AppEvent::FilesLoaded { .. }
+            | AppEvent::CommentsLoaded { .. }
+            | AppEvent::ThreadsLoaded { .. } => {}
+            AppEvent::StackTitlesLoaded(_) => {}
+            AppEvent::StackPrefetchLoaded(snapshots) => {
+                for (pr_number, snapshot) in snapshots {
+                    self.stack.insert_titles(&[(pr_number, snapshot.meta.title.clone())]);
+                    self.pr_cache.insert(pr_number, snapshot);
+                }
             }
             AppEvent::ThreadResolveToggled => {
                 self.status.success("Thread updated");
@@ -270,13 +298,128 @@ impl App {
         );
     }
 
+    fn check_primary_ready(&mut self) {
+        self.primary_load_count += 1;
+    }
+
+    fn prefetch_stack(&self) {
+        let pr_numbers: Vec<u64> = self
+            .stack
+            .links
+            .iter()
+            .filter(|l| l.pr_number != self.pr_number)
+            .filter(|l| !self.pr_cache.contains(l.pr_number))
+            .map(|l| l.pr_number)
+            .collect();
+        if pr_numbers.is_empty() {
+            return;
+        }
+        let tx = self.tx.clone();
+        let repo = self.repo.clone();
+        tokio::spawn(async move {
+            match crate::gh::fetch_prs_batch(&repo, &pr_numbers).await {
+                Ok(batch) => {
+                    let mut snapshots = std::collections::HashMap::new();
+                    for (pr_number, (meta, comments, threads)) in batch {
+                        // Files need REST (GraphQL doesn't provide patches).
+                        // Pre-fetch files per PR concurrently.
+                        let files = crate::gh::fetch_pr_files(&repo, pr_number)
+                            .await
+                            .unwrap_or_default();
+                        snapshots.insert(
+                            pr_number,
+                            crate::stack::PrSnapshot {
+                                meta,
+                                files,
+                                comments,
+                                pending_comments: Vec::new(),
+                                threads,
+                            },
+                        );
+                    }
+                    let _ = tx.send(AppEvent::StackPrefetchLoaded(snapshots));
+                }
+                Err(e) => {
+                    let _ = tx.send(AppEvent::Error(format!("Stack prefetch failed: {e}")));
+                }
+            }
+        });
+    }
+
+    // ── Stack navigation ──────────────────────────────────────────────
+
+    /// Save the current PR's state to the cache.
+    fn save_current_to_cache(&mut self) {
+        if let Some(meta) = self.pr_meta.take() {
+            let snapshot = crate::stack::PrSnapshot {
+                meta,
+                files: std::mem::take(&mut self.files),
+                comments: std::mem::take(&mut self.existing_comments),
+                pending_comments: std::mem::take(&mut self.pending_comments),
+                threads: std::mem::take(&mut self.thread_map),
+            };
+            self.pr_cache.insert(self.pr_number, snapshot);
+        }
+    }
+
+    /// Load a PR from cache into the active state. Returns false if not cached.
+    fn restore_from_cache(&mut self, pr_number: u64) -> bool {
+        if let Some(snapshot) = self.pr_cache.take(pr_number) {
+            self.pr_number = pr_number;
+            self.description_panel.load(&snapshot.meta.title, snapshot.meta.body.as_deref());
+            self.pr_meta = Some(snapshot.meta);
+            self.files = snapshot.files;
+            self.existing_comments = snapshot.comments;
+            self.pending_comments = snapshot.pending_comments;
+            self.thread_map = snapshot.threads;
+            self.file_picker.set_files(&self.files);
+            self.diff_view = crate::components::diff_view::DiffView::new();
+            self.rebuild_display();
+            self.stack.current_pr = pr_number;
+            self.loading = false;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Navigate to a different PR in the stack.
+    pub(crate) fn navigate_to_pr(&mut self, pr_number: u64) {
+        if pr_number == self.pr_number {
+            return;
+        }
+        let mode = self.diff_view.mode;
+        self.save_current_to_cache();
+
+        if self.restore_from_cache(pr_number) {
+            self.diff_view.mode = mode;
+            self.status.success(format!("Switched to PR #{pr_number}"));
+        } else {
+            // Not cached -- fetch via REST (same as initial load)
+            self.pr_number = pr_number;
+            self.pr_meta = None;
+            self.files.clear();
+            self.existing_comments.clear();
+            self.pending_comments.clear();
+            self.thread_map.clear();
+            self.file_picker.set_files(&self.files);
+            self.diff_view = crate::components::diff_view::DiffView::new();
+            self.diff_view.mode = mode;
+            self.stack.current_pr = pr_number;
+            self.primary_load_count = 0;
+            self.loading = true;
+            self.status.info(format!("Loading PR #{pr_number}..."));
+            self.start_loading();
+        }
+    }
+
     fn reload_threads(&self) {
         let tx = self.tx.clone();
         let repo = self.repo.clone();
         let pr = self.pr_number;
         tokio::spawn(async move {
             if let Ok(threads) = crate::gh::fetch_review_threads(&repo, pr).await {
-                let _ = tx.send(AppEvent::ThreadsLoaded(threads));
+                let _ = tx.send(AppEvent::ThreadsLoaded { pr, data: threads });
             }
         });
     }
@@ -287,7 +430,7 @@ impl App {
         let pr = self.pr_number;
         tokio::spawn(async move {
             if let Ok(comments) = crate::gh::fetch_review_comments(&repo, pr).await {
-                let _ = tx.send(AppEvent::CommentsLoaded(comments));
+                let _ = tx.send(AppEvent::CommentsLoaded { pr, data: comments });
             }
         });
         self.reload_threads();

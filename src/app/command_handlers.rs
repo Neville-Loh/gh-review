@@ -493,6 +493,22 @@ pub fn desc_close(app: &mut App) {
     app.focus = super::Focus::DiffView;
 }
 
+pub fn stack_up(app: &mut App) {
+    if let Some(pr) = app.stack.pr_above() {
+        app.navigate_to_pr(pr);
+    } else {
+        app.status.error("Already at the top of the stack");
+    }
+}
+
+pub fn stack_down(app: &mut App) {
+    if let Some(pr) = app.stack.pr_below() {
+        app.navigate_to_pr(pr);
+    } else {
+        app.status.error("Already at the bottom of the stack");
+    }
+}
+
 pub fn lgtm(app: &mut App) {
     app.submit_review(ReviewEvent::Approve, "LGTM, ship it".to_string());
 }
