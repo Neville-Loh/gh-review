@@ -12,6 +12,26 @@ use std::collections::HashMap;
 
 use crate::types::{DiffFile, ExistingComment, PrMetadata, ReviewComment, ThreadInfo};
 
+/// Visual status of a PR in a stack.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PrStatus {
+    Open,
+    Draft,
+    Merged,
+    Closed,
+}
+
+impl PrStatus {
+    pub fn from_metadata(state: &str, draft: bool) -> Self {
+        match state.to_uppercase().as_str() {
+            "MERGED" | "merged" => Self::Merged,
+            "CLOSED" | "closed" => Self::Closed,
+            _ if draft => Self::Draft,
+            _ => Self::Open,
+        }
+    }
+}
+
 /// A PR in a stack.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PrLink {
@@ -28,7 +48,8 @@ pub struct PrLink {
 pub struct StackState {
     pub links: Vec<PrLink>,
     pub current_pr: u64,
-    cache: HashMap<u64, String>,
+    title_cache: HashMap<u64, String>,
+    status_cache: HashMap<u64, PrStatus>,
 }
 
 impl StackState {
@@ -36,7 +57,8 @@ impl StackState {
         Self {
             links: Vec::new(),
             current_pr: 0,
-            cache: HashMap::new(),
+            title_cache: HashMap::new(),
+            status_cache: HashMap::new(),
         }
     }
 
@@ -49,13 +71,23 @@ impl StackState {
     /// Store fetched titles into the cache.
     pub fn insert_titles(&mut self, titles: &[(u64, String)]) {
         for (pr_number, title) in titles {
-            self.cache.insert(*pr_number, title.clone());
+            self.title_cache.insert(*pr_number, title.clone());
         }
+    }
+
+    /// Store a PR's status.
+    pub fn insert_status(&mut self, pr_number: u64, status: PrStatus) {
+        self.status_cache.insert(pr_number, status);
     }
 
     /// Look up a cached title.
     pub fn title(&self, pr_number: u64) -> Option<&str> {
-        self.cache.get(&pr_number).map(String::as_str)
+        self.title_cache.get(&pr_number).map(String::as_str)
+    }
+
+    /// Look up a cached status.
+    pub fn status(&self, pr_number: u64) -> Option<PrStatus> {
+        self.status_cache.get(&pr_number).copied()
     }
 
     pub fn is_empty(&self) -> bool {

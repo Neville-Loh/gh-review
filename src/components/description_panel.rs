@@ -14,7 +14,7 @@ use ratatui::{
 };
 use unicode_width::UnicodeWidthStr;
 
-use crate::stack::StackState;
+use crate::stack::{PrStatus, StackState};
 use crate::theme::Theme;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -27,6 +27,7 @@ pub struct DescriptionPanel {
     pub visible: bool,
     pub title: String,
     pub body: String,
+    pub branch_info: String,
     pub cursor: usize,
     scroll_offset: usize,
     content_lines: Vec<ContentLine>,
@@ -46,6 +47,7 @@ impl DescriptionPanel {
             visible: true,
             title: String::new(),
             body: String::new(),
+            branch_info: String::new(),
             cursor: 0,
             scroll_offset: 0,
             content_lines: Vec::new(),
@@ -54,9 +56,10 @@ impl DescriptionPanel {
         }
     }
 
-    pub fn load(&mut self, title: &str, body: Option<&str>) {
+    pub fn load(&mut self, title: &str, body: Option<&str>, branch_info: &str) {
         self.title = title.to_string();
         self.body = body.unwrap_or("").to_string();
+        self.branch_info = branch_info.to_string();
         self.rebuild_content(self.last_width.max(60));
     }
 
@@ -206,26 +209,36 @@ impl DescriptionPanel {
                 break;
             }
             let is_current = pr.pr_number == stack.current_pr;
-            let indicator = if is_current { "▸" } else { " " };
+            let cursor_mark = if is_current { "▸" } else { " " };
+            let status = stack.status(pr.pr_number);
+            let (status_icon, status_color) = match status {
+                Some(PrStatus::Merged) => ("✓", Color::Magenta),
+                Some(PrStatus::Closed) => ("✗", Color::Red),
+                Some(PrStatus::Draft) => ("◌", Color::DarkGray),
+                Some(PrStatus::Open) | None => ("●", Color::Green),
+            };
             let name = stack
                 .title(pr.pr_number)
                 .unwrap_or("")
                 .chars()
-                .take((width as usize).saturating_sub(10))
+                .take((width as usize).saturating_sub(12))
                 .collect::<String>();
-            let label = if name.is_empty() {
-                format!("{indicator} #{}", pr.pr_number)
+            let pr_label = if name.is_empty() {
+                format!("#{}", pr.pr_number)
             } else {
-                format!("{indicator} #{} {name}", pr.pr_number)
+                format!("#{} {name}", pr.pr_number)
             };
-            let style = if is_current {
-                Style::default()
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD)
+            let text_style = if is_current {
+                Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::DarkGray)
             };
-            buf.set_line(x, y + row, &Line::from(Span::styled(label, style)), width);
+            let line = Line::from(vec![
+                Span::styled(format!("{cursor_mark} "), text_style),
+                Span::styled(format!("{status_icon} "), Style::default().fg(status_color)),
+                Span::styled(pr_label, text_style),
+            ]);
+            buf.set_line(x, y + row, &line, width);
             row += 1;
         }
 
@@ -250,7 +263,7 @@ impl DescriptionPanel {
 
     pub fn rebuild_content(&mut self, width: u16) {
         let max_w = width.saturating_sub(2) as usize;
-        let mut lines = build_title_lines(&self.title, max_w);
+        let mut lines = build_title_lines(&self.title, &self.branch_info, max_w);
         let body_start = lines.len();
         lines.extend(build_body_lines(&self.body, max_w));
 
@@ -262,13 +275,22 @@ impl DescriptionPanel {
     }
 }
 
-fn build_title_lines(title: &str, max_w: usize) -> Vec<ContentLine> {
+fn build_title_lines(title: &str, branch_info: &str, max_w: usize) -> Vec<ContentLine> {
     let mut lines = Vec::new();
     for wl in wrap_text(title, max_w) {
         lines.push(ContentLine {
             line: Line::from(Span::styled(
                 wl,
                 Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+            )),
+            region: CursorRegion::Title,
+        });
+    }
+    if !branch_info.is_empty() {
+        lines.push(ContentLine {
+            line: Line::from(Span::styled(
+                branch_info.to_string(),
+                Style::default().fg(Color::DarkGray),
             )),
             region: CursorRegion::Title,
         });

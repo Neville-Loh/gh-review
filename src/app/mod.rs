@@ -191,8 +191,13 @@ impl App {
             AppEvent::Resize(_, _) => {}
             AppEvent::Tick => {}
             AppEvent::PrLoaded { pr, data: meta } if pr == self.pr_number => {
-                self.description_panel.load(&meta.title, meta.body.as_deref());
+                let branch_info = format!("{} → {}", meta.base.ref_name, meta.head.ref_name);
+                self.description_panel.load(&meta.title, meta.body.as_deref(), &branch_info);
                 self.stack.insert_titles(&[(self.pr_number, meta.title.clone())]);
+                self.stack.insert_status(
+                    self.pr_number,
+                    crate::stack::PrStatus::from_metadata(&meta.state, meta.draft),
+                );
                 self.pr_meta = Some(*meta);
                 self.loading = false;
             }
@@ -222,6 +227,10 @@ impl App {
             AppEvent::StackPrefetchLoaded(snapshots) => {
                 for (pr_number, snapshot) in snapshots {
                     self.stack.insert_titles(&[(pr_number, snapshot.meta.title.clone())]);
+                    self.stack.insert_status(
+                        pr_number,
+                        crate::stack::PrStatus::from_metadata(&snapshot.meta.state, snapshot.meta.draft),
+                    );
                     self.pr_cache.insert(pr_number, snapshot);
                 }
             }
@@ -336,7 +345,8 @@ impl App {
     fn restore_from_cache(&mut self, pr_number: u64) -> bool {
         if let Some(snapshot) = self.pr_cache.take(pr_number) {
             self.pr_number = pr_number;
-            self.description_panel.load(&snapshot.meta.title, snapshot.meta.body.as_deref());
+            let branch_info = format!("{} → {}", snapshot.meta.base.ref_name, snapshot.meta.head.ref_name);
+            self.description_panel.load(&snapshot.meta.title, snapshot.meta.body.as_deref(), &branch_info);
             self.pr_meta = Some(snapshot.meta);
             self.files = snapshot.files;
             self.existing_comments = snapshot.comments;
