@@ -218,7 +218,7 @@ pub fn fold_close(app: &mut App) {
 pub fn toggle_comment(app: &mut App) {
     let on_comment = matches!(
         app.diff_view.current_context(),
-        crate::types::RowContext::Comment | crate::types::RowContext::Suggestion
+        crate::types::RowContext::Comment(_) | crate::types::RowContext::Suggestion(_)
     );
     if app.diff_view.toggle_comment_expand() || (!on_comment && app.diff_view.fold_toggle()) {
         app.rebuild_display();
@@ -434,8 +434,11 @@ pub fn picker_up(app: &mut App) {
 }
 
 pub fn description(app: &mut App) {
-    if app.focus == super::Focus::Description {
-        app.focus = super::Focus::DiffView;
+    if app.description_panel.visible {
+        app.description_panel.visible = false;
+        if app.focus == super::Focus::Description {
+            app.focus = super::Focus::DiffView;
+        }
     } else {
         app.description_panel.visible = true;
         app.focus = super::Focus::Description;

@@ -7,7 +7,6 @@ use ratatui::{
 
 use crate::app::keymap::Keymap;
 use crate::app::Focus;
-use crate::components::description_panel::CursorRegion;
 use crate::components::status_line::StatusLine;
 use crate::theme::Theme;
 use crate::types::RowContext;
@@ -24,14 +23,15 @@ impl ReviewBar {
         status: &StatusLine,
         keymap: &Keymap,
         focus: Focus,
-        desc_region: CursorRegion,
         has_stack: bool,
     ) {
-        let mut spans = if focus == Focus::Description {
-            Self::description_hints(desc_region, keymap, has_stack)
-        } else {
-            Self::context_hints(context, keymap)
-        };
+        let has_pending = pending_count > 0;
+        let pairs = keymap.bar_hints(focus, context, has_stack, has_pending);
+        let mut spans: Vec<Span<'static>> = Vec::new();
+        for (hint, key_label) in pairs {
+            spans.push(Span::styled(format!(" [{key_label}]"), Theme::review_bar_key()));
+            spans.push(Span::styled(format!(" {hint} "), Theme::review_bar_label()));
+        }
 
         let help_key = keymap.key_label("help");
         spans.push(Span::styled(format!("[{help_key}]"), Theme::review_bar_key()));
@@ -58,38 +58,5 @@ impl ReviewBar {
         let line = Line::from(spans);
         let bar = Paragraph::new(line).style(Theme::review_bar());
         Widget::render(bar, area, buf);
-    }
-
-    fn context_hints(context: RowContext, keymap: &Keymap) -> Vec<Span<'static>> {
-        let pairs = keymap.context_hint_pairs(context);
-        let mut spans = Vec::new();
-        for (desc, key_label) in pairs {
-            spans.push(Span::styled(format!(" [{key_label}]"), Theme::review_bar_key()));
-            spans.push(Span::styled(format!(" {desc} "), Theme::review_bar_label()));
-        }
-        spans
-    }
-
-    fn description_hints(region: CursorRegion, keymap: &Keymap, has_stack: bool) -> Vec<Span<'static>> {
-        let region_name = match region {
-            CursorRegion::Title => "title",
-            CursorRegion::Body => "body",
-        };
-        let edit_key = keymap.key_label("edit_description");
-        let mut spans = vec![
-            Span::styled(format!(" [{edit_key}]"), Theme::review_bar_key()),
-            Span::styled(format!(" edit {region_name} "), Theme::review_bar_label()),
-        ];
-        if has_stack {
-            let up_key = keymap.key_label("stack_up");
-            let down_key = keymap.key_label("stack_down");
-            spans.push(Span::styled(format!("[{up_key}]"), Theme::review_bar_key()));
-            spans.push(Span::styled(" stack↑ ", Theme::review_bar_label()));
-            spans.push(Span::styled(format!("[{down_key}]"), Theme::review_bar_key()));
-            spans.push(Span::styled(" stack↓ ", Theme::review_bar_label()));
-        }
-        spans.push(Span::styled("[Esc]", Theme::review_bar_key()));
-        spans.push(Span::styled(" close ", Theme::review_bar_label()));
-        spans
     }
 }
