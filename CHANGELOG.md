@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.2.1] - 2026-03-30
+
+### Added
+
+- **Graphite stack navigation** — auto-detects stacked PRs from Graphite bot comments; navigate between PRs in a stack with Cmd+K / Cmd+J (or Cmd+Up / Cmd+Down); PR data is cached so switching is instant (#57)
+- **Stack indicator** — description panel shows the full stack with per-PR status (open, draft, merged, closed), titles, and highlights the currently viewed PR (#57)
+- **Title bar additions/deletions** — PR title bar now shows colored `+N/-M` line counts (#59)
+- **Paragraph jumps** — `{` / `}` to jump between blank lines in the diff, matching vim paragraph motion; `[` / `]` remain for hunk navigation (#61)
+- **`:` command mode everywhere** — command bar now opens from any panel, not just the diff view (#57)
+- **Branch info in description** — description panel header shows `base → head` branch names (#57)
+
+### Changed
+
+- **Comment rendering refactor** — extracted `emit_expanded_thread` helper to share rendering logic across inline threads, pending comments, and orphan threads; reduces duplication in `diff/model.rs` (#52, #58)
+- **Fetch pipeline refactor** — replaced four parallel `tokio::spawn` blocks with a generic `spawn_fetch` helper; events now carry a `pr` field so stale responses from a previous PR are discarded (#57)
+- **Graphite bot comments filtered** — Graphite's auto-generated stack management comments are now hidden from the diff view (#57)
+- **Test data anonymized** — CLI test fixtures now use `acme/widgets` instead of real repo names (#58)
+
+### Fixed
+
+- **Paragraph jump in diff** — `{` / `}` now correctly land on file/hunk header boundaries instead of overshooting (#61)
+
 ## [0.2.0] - 2026-03-28
 
 ### Added
