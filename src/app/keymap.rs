@@ -292,12 +292,12 @@ impl Keymap {
 
     /// Build help overlay entries matching the original curated layout.
     /// Keys resolve dynamically from the active keymap.
-    pub fn help_bindings(&self) -> Vec<(String, &'static str)> {
+    pub fn help_bindings(&self, has_stack: bool) -> Vec<(String, &'static str)> {
         let all = |name: &str| self.key_labels(name);
         let one = |name: &str| self.key_label(name);
         let pair = |a: &str, b: &str| format!("{}, {}", all(a), all(b));
 
-        vec![
+        let mut items = vec![
             // Navigation
             (pair("scroll_down", "scroll_up"), "Scroll line"),
             (format!("{} / {}", one("goto_first"), one("goto_last")), "Go to first / last line"),
@@ -309,6 +309,7 @@ impl Keymap {
             // Jumps
             (all("next_hunk"), "Next hunk"),
             (all("prev_hunk"), "Previous hunk"),
+            (format!("{} / {}", one("next_paragraph"), one("prev_paragraph")), "Next / previous paragraph"),
             (format!("{} / {}", one("next_change"), one("prev_change")), "Next / previous change"),
             (format!("{} / {}", one("next_comment"), one("prev_comment")), "Next / previous comment"),
             (String::new(), ""),
@@ -333,7 +334,14 @@ impl Keymap {
             (one("toggle_view"), "Toggle unified / side-by-side"),
             (one("open_browser"), "Open in browser"),
             (one("quit"), "Quit"),
-        ]
+        ];
+
+        if has_stack {
+            items.push((String::new(), ""));
+            items.push((format!("{} / {}", one("stack_up"), one("stack_down")), "Navigate stack up / down"));
+        }
+
+        items
     }
 
     /// Build context-specific hint spans for the review bar.

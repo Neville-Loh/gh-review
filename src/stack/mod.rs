@@ -16,18 +16,47 @@ use crate::types::{DiffFile, ExistingComment, PrMetadata, ReviewComment, ThreadI
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PrStatus {
     Open,
+    Approved,
+    ChangesRequested,
     Draft,
     Merged,
     Closed,
 }
 
 impl PrStatus {
-    pub fn from_metadata(state: &str, draft: bool) -> Self {
+    pub fn from_metadata(state: &str, draft: bool, review_decision: Option<&str>) -> Self {
         match state.to_uppercase().as_str() {
-            "MERGED" | "merged" => Self::Merged,
-            "CLOSED" | "closed" => Self::Closed,
+            "MERGED" => Self::Merged,
+            "CLOSED" => Self::Closed,
             _ if draft => Self::Draft,
-            _ => Self::Open,
+            _ => match review_decision {
+                Some("APPROVED") => Self::Approved,
+                Some("CHANGES_REQUESTED") => Self::ChangesRequested,
+                _ => Self::Open,
+            },
+        }
+    }
+
+    pub fn icon(self) -> &'static str {
+        match self {
+            Self::Open => "●",
+            Self::Approved => "✓",
+            Self::ChangesRequested => "✗",
+            Self::Draft => "◌",
+            Self::Merged => "✓",
+            Self::Closed => "✗",
+        }
+    }
+
+    pub fn color(self) -> ratatui::style::Color {
+        use ratatui::style::Color;
+        match self {
+            Self::Open => Color::Green,
+            Self::Approved => Color::Green,
+            Self::ChangesRequested => Color::Red,
+            Self::Draft => Color::DarkGray,
+            Self::Merged => Color::Magenta,
+            Self::Closed => Color::Red,
         }
     }
 }

@@ -210,13 +210,9 @@ impl DescriptionPanel {
             }
             let is_current = pr.pr_number == stack.current_pr;
             let cursor_mark = if is_current { "▸" } else { " " };
-            let status = stack.status(pr.pr_number);
-            let (status_icon, status_color) = match status {
-                Some(PrStatus::Merged) => ("✓", Color::Magenta),
-                Some(PrStatus::Closed) => ("✗", Color::Red),
-                Some(PrStatus::Draft) => ("◌", Color::DarkGray),
-                Some(PrStatus::Open) | None => ("●", Color::Green),
-            };
+            let status = stack.status(pr.pr_number).unwrap_or(PrStatus::Open);
+            let status_icon = status.icon();
+            let status_color = status.color();
             let name = stack
                 .title(pr.pr_number)
                 .unwrap_or("")
