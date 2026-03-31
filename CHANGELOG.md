@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **PR status in title bar** — colored status icon (approved, changes requested, draft, merged, closed) derived from GitHub's `reviewDecision` field (#63)
+
+### Changed
+
+- **Description panel default off** — `d` toggles the description panel on/off; default is now hidden; navigate with arrow keys when open
+- **`q` scoped to panel** — pressing `q` in the description panel closes the panel instead of quitting the app
+- **Context-aware review bar hints** — status bar hints are now generated from the keymap with conditions (e.g. "discard" only shown on pending comments, "resolve"/"unresolve" adapts to thread state); replaces hardcoded hint strings (#64)
+- **Help overlay reformatted** — hardcoded layout with stack navigation section when a stack is detected; cleaner presentation
+- **`RowContext` carries state** — `Comment` and `Suggestion` variants now include `CommentState` (is_pending, is_resolved) for context-sensitive key dispatch and hint rendering
+- **`PrStatus` consolidated** — merged review decision into `PrStatus` with `Approved` and `ChangesRequested` variants; added `icon()` and `color()` methods (#63)
+
 ## [0.2.1] - 2026-03-30
 
 ### Added

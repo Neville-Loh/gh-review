@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 use crate::types::{
     DiffFile, ExistingComment, FileStatus, GhFile, PrMetadata, PrRef, PrReview, PrUser,
-    ReviewComment, ReviewEvent, ThreadInfo,
+    ReviewComment, ReviewEvent, ReviewState, ReviewerInfo, ThreadInfo,
 };
 
 async fn run_gh(args: &[&str]) -> Result<String> {
@@ -66,10 +66,164 @@ pub async fn get_current_user() -> Result<String> {
     Ok(output.trim().to_string())
 }
 
-pub async fn fetch_pr_metadata(repo: &str, pr_number: u64) -> Result<PrMetadata> {
-    let url = format!("repos/{repo}/pulls/{pr_number}");
-    let output = run_gh(&["api", &url]).await?;
-    serde_json::from_str(&output).context("Failed to parse PR metadata")
+/// Parse reviewer info from GraphQL `latestReviews` and `reviewRequests`.
+fn parse_reviewers(pr: &serde_json::Value) -> Vec<ReviewerInfo> {
+    let mut reviewers: Vec<ReviewerInfo> = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+
+    if let Some(nodes) = pr["latestReviews"]["nodes"].as_array() {
+        for node in nodes {
+            let login = node["author"]["login"]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
+            let state = ReviewState::from_str(
+                node["state"].as_str().unwrap_or(""),
+            );
+            if !login.is_empty() && seen.insert(login.clone()) {
+                reviewers.push(ReviewerInfo { login, state });
+            }
+        }
+    }
+
+    if let Some(nodes) = pr["reviewRequests"]["nodes"].as_array() {
+        for node in nodes {
+            let reviewer = &node["requestedReviewer"];
+            let login = reviewer["login"]
+                .as_str()
+                .or_else(|| reviewer["name"].as_str())
+                .unwrap_or("")
+                .to_string();
+            if !login.is_empty() && seen.insert(login.clone()) {
+                reviewers.push(ReviewerInfo {
+                    login,
+                    state: ReviewState::Pending,
+                });
+            }
+        }
+    }
+
+    reviewers
+}
+
+/// Fetch PR metadata and review threads in a single GraphQL call.
+/// Returns `(PrMetadata, HashMap<comment_db_id, ThreadInfo>)`.
+pub async fn fetch_pr_data(
+    repo: &str,
+    pr_number: u64,
+) -> Result<(PrMetadata, HashMap<u64, ThreadInfo>)> {
+    let (owner, name) = repo
+        .split_once('/')
+        .context("Invalid repo format, expected owner/name")?;
+
+    let query = r#"
+        query($owner: String!, $name: String!, $pr: Int!, $cursor: String) {
+            repository(owner: $owner, name: $name) {
+                pullRequest(number: $pr) {
+                    number title body state isDraft reviewDecision
+                    headRefName baseRefName headRefOid baseRefOid
+                    additions deletions changedFiles
+                    author { login }
+                    reviewRequests(first: 20) {
+                        nodes {
+                            requestedReviewer {
+                                ... on User { login }
+                                ... on Team { name }
+                            }
+                        }
+                    }
+                    latestReviews(first: 20) {
+                        nodes { author { login } state }
+                    }
+                    reviewThreads(first: 100, after: $cursor) {
+                        pageInfo { hasNextPage endCursor }
+                        nodes {
+                            id
+                            isResolved
+                            comments(first: 1) {
+                                nodes { databaseId }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    "#;
+
+    let mut thread_map = HashMap::new();
+    let mut cursor: Option<String> = None;
+    let mut meta: Option<PrMetadata> = None;
+
+    loop {
+        let vars = serde_json::json!({
+            "owner": owner,
+            "name": name,
+            "pr": pr_number,
+            "cursor": cursor,
+        });
+
+        let result = run_graphql(query, &vars).await?;
+        let pr = &result["data"]["repository"]["pullRequest"];
+
+        if meta.is_none() {
+            let reviewers = parse_reviewers(pr);
+            meta = Some(PrMetadata {
+                number: pr_number,
+                title: pr["title"].as_str().unwrap_or("").to_string(),
+                body: pr["body"].as_str().map(String::from),
+                state: pr["state"].as_str().unwrap_or("").to_string(),
+                draft: pr["isDraft"].as_bool().unwrap_or(false),
+                review_decision: pr["reviewDecision"].as_str().map(String::from),
+                head: PrRef {
+                    sha: pr["headRefOid"].as_str().unwrap_or("").to_string(),
+                    ref_name: pr["headRefName"].as_str().unwrap_or("").to_string(),
+                },
+                base: PrRef {
+                    sha: pr["baseRefOid"].as_str().unwrap_or("").to_string(),
+                    ref_name: pr["baseRefName"].as_str().unwrap_or("").to_string(),
+                },
+                user: PrUser {
+                    login: pr["author"]["login"].as_str().unwrap_or("").to_string(),
+                },
+                additions: pr["additions"].as_u64().map(|v| v as usize),
+                deletions: pr["deletions"].as_u64().map(|v| v as usize),
+                changed_files: pr["changedFiles"].as_u64().map(|v| v as usize),
+                reviewers,
+            });
+        }
+
+        let threads = &pr["reviewThreads"];
+        if let Some(nodes) = threads["nodes"].as_array() {
+            for node in nodes {
+                let thread_id = node["id"].as_str().unwrap_or_default().to_string();
+                let is_resolved = node["isResolved"].as_bool().unwrap_or(false);
+                if let Some(first_comment) =
+                    node["comments"]["nodes"].as_array().and_then(|a| a.first())
+                    && let Some(db_id) = first_comment["databaseId"].as_u64()
+                {
+                    thread_map.insert(
+                        db_id,
+                        ThreadInfo {
+                            thread_node_id: thread_id,
+                            is_resolved,
+                        },
+                    );
+                }
+            }
+        }
+
+        let has_next = threads["pageInfo"]["hasNextPage"]
+            .as_bool()
+            .unwrap_or(false);
+        if has_next {
+            cursor = threads["pageInfo"]["endCursor"].as_str().map(String::from);
+        } else {
+            break;
+        }
+    }
+
+    let meta = meta.context("GraphQL returned no pullRequest data")?;
+    Ok((meta, thread_map))
 }
 
 pub async fn update_pr(repo: &str, pr_number: u64, field: &str, value: &str) -> Result<()> {
@@ -336,6 +490,7 @@ fragment PrFields on PullRequest {
             additions: pr["additions"].as_u64().map(|v| v as usize),
             deletions: pr["deletions"].as_u64().map(|v| v as usize),
             changed_files: pr["changedFiles"].as_u64().map(|v| v as usize),
+            reviewers: Vec::new(),
         };
 
         // Parse review thread comments

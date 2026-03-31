@@ -16,6 +16,7 @@ use unicode_width::UnicodeWidthStr;
 
 use crate::stack::{PrStatus, StackState};
 use crate::theme::Theme;
+use crate::types::ReviewerInfo;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CursorRegion {
@@ -28,6 +29,7 @@ pub struct DescriptionPanel {
     pub title: String,
     pub body: String,
     pub branch_info: String,
+    pub reviewers: Vec<ReviewerInfo>,
     pub cursor: usize,
     scroll_offset: usize,
     content_lines: Vec<ContentLine>,
@@ -48,6 +50,7 @@ impl DescriptionPanel {
             title: String::new(),
             body: String::new(),
             branch_info: String::new(),
+            reviewers: Vec::new(),
             cursor: 0,
             scroll_offset: 0,
             content_lines: Vec::new(),
@@ -56,10 +59,17 @@ impl DescriptionPanel {
         }
     }
 
-    pub fn load(&mut self, title: &str, body: Option<&str>, branch_info: &str) {
+    pub fn load(
+        &mut self,
+        title: &str,
+        body: Option<&str>,
+        branch_info: &str,
+        reviewers: Vec<ReviewerInfo>,
+    ) {
         self.title = title.to_string();
         self.body = body.unwrap_or("").to_string();
         self.branch_info = branch_info.to_string();
+        self.reviewers = reviewers;
         self.rebuild_content(self.last_width.max(60));
     }
 
@@ -252,7 +262,7 @@ impl DescriptionPanel {
 
     pub fn rebuild_content(&mut self, width: u16) {
         let max_w = width.saturating_sub(2) as usize;
-        let mut lines = build_title_lines(&self.title, &self.branch_info, max_w);
+        let mut lines = build_title_lines(&self.title, &self.reviewers, &self.branch_info, max_w);
         let body_start = lines.len();
         lines.extend(build_body_lines(&self.body, max_w));
 
@@ -264,39 +274,66 @@ impl DescriptionPanel {
     }
 }
 
-fn build_title_lines(title: &str, branch_info: &str, max_w: usize) -> Vec<ContentLine> {
+fn build_title_lines(
+    title: &str,
+    reviewers: &[ReviewerInfo],
+    branch_info: &str,
+    max_w: usize,
+) -> Vec<ContentLine> {
     let mut lines = Vec::new();
+    let title_row = |line: Line<'static>| ContentLine { line, region: CursorRegion::Title };
+
+    // Title
     for wl in wrap_text(title, max_w) {
-        lines.push(ContentLine {
-            line: Line::from(Span::styled(
-                wl,
-                Style::default()
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD),
-            )),
-            region: CursorRegion::Title,
-        });
+        lines.push(title_row(Line::from(Span::styled(
+            wl,
+            Style::default()
+                .fg(Color::White)
+                .add_modifier(Modifier::BOLD),
+        ))));
     }
+
+    // Blank line after title
+    lines.push(title_row(Line::default()));
+
+    // Reviewers
+    if !reviewers.is_empty() {
+        for r in reviewers {
+            let icon = r.state.icon();
+            let color = r.state.color();
+            let label = match r.state {
+                crate::types::ReviewState::Approved => "approved",
+                crate::types::ReviewState::ChangesRequested => "changes requested",
+                crate::types::ReviewState::Pending => "requested",
+                crate::types::ReviewState::Commented => "commented",
+                crate::types::ReviewState::Dismissed => "dismissed",
+            };
+            lines.push(title_row(Line::from(vec![
+                Span::styled(format!("{icon} "), Style::default().fg(color)),
+                Span::styled(r.login.clone(), Style::default().fg(Color::White)),
+                Span::styled(format!("  {label}"), Style::default().fg(Color::DarkGray)),
+            ])));
+        }
+        lines.push(title_row(Line::default()));
+    }
+
+    // Branch info
     if !branch_info.is_empty() {
-        lines.push(ContentLine {
-            line: Line::from(Span::styled(
-                branch_info.to_string(),
-                Style::default().fg(Color::DarkGray),
-            )),
-            region: CursorRegion::Title,
-        });
-    }
-    lines.push(ContentLine {
-        line: Line::from(Span::styled(
-            "─".repeat(max_w.min(40)),
+        lines.push(title_row(Line::from(Span::styled(
+            branch_info.to_string(),
             Style::default().fg(Color::DarkGray),
-        )),
-        region: CursorRegion::Title,
-    });
-    lines.push(ContentLine {
-        line: Line::default(),
-        region: CursorRegion::Title,
-    });
+        ))));
+    }
+
+    // Separator
+    lines.push(title_row(Line::from(Span::styled(
+        "─".repeat(max_w.min(40)),
+        Style::default().fg(Color::DarkGray),
+    ))));
+
+    // Blank line before body
+    lines.push(title_row(Line::default()));
+
     lines
 }
 

@@ -164,6 +164,54 @@ pub enum DiffMode {
     SideBySide,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReviewState {
+    Approved,
+    ChangesRequested,
+    Pending,
+    Commented,
+    Dismissed,
+}
+
+impl ReviewState {
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "APPROVED" => Self::Approved,
+            "CHANGES_REQUESTED" => Self::ChangesRequested,
+            "COMMENTED" => Self::Commented,
+            "DISMISSED" => Self::Dismissed,
+            _ => Self::Pending,
+        }
+    }
+
+    pub fn icon(self) -> &'static str {
+        match self {
+            Self::Approved => "✓",
+            Self::ChangesRequested => "✗",
+            Self::Pending => "●",
+            Self::Commented => "○",
+            Self::Dismissed => "─",
+        }
+    }
+
+    pub fn color(self) -> ratatui::style::Color {
+        use ratatui::style::Color;
+        match self {
+            Self::Approved => Color::Green,
+            Self::ChangesRequested => Color::Red,
+            Self::Pending => Color::DarkGray,
+            Self::Commented => Color::Yellow,
+            Self::Dismissed => Color::DarkGray,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ReviewerInfo {
+    pub login: String,
+    pub state: ReviewState,
+}
+
 #[derive(Debug, Deserialize)]
 #[allow(dead_code)]
 pub struct PrMetadata {
@@ -181,6 +229,8 @@ pub struct PrMetadata {
     pub additions: Option<usize>,
     pub deletions: Option<usize>,
     pub changed_files: Option<usize>,
+    #[serde(skip)]
+    pub reviewers: Vec<ReviewerInfo>,
 }
 
 #[derive(Debug, Deserialize)]
