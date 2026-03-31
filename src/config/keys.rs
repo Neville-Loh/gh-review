@@ -75,6 +75,11 @@ pub fn format_key_binding(binding: &KeyBinding) -> String {
 
 /// Format a `KeyCombo` for display (e.g. `Ctrl-d`, `Tab`, `G`).
 pub fn format_key_combo(combo: &KeyCombo) -> String {
+    if combo.modifiers == KeyModifiers::NONE
+        && let KeyCode::Char(c) = combo.code
+    {
+        return c.to_string();
+    }
     let kc = KeyCombination::new(combo.code, combo.modifiers);
     display_format().to_string(kc)
 }
@@ -210,5 +215,67 @@ mod tests {
             KeyCode::Enter,
             KeyModifiers::CONTROL | KeyModifiers::SHIFT,
         );
+    }
+
+    // ── format_key_binding / format_key_combo tests ─────────────────
+
+    fn assert_format(combo: KeyCombo, expected: &str) {
+        let actual = format_key_combo(&combo);
+        assert_eq!(actual, expected, "format mismatch for {combo:?}");
+    }
+
+    #[test]
+    fn format_lowercase_char() {
+        assert_format('c'.into(), "c");
+        assert_format('q'.into(), "q");
+        assert_format('j'.into(), "j");
+    }
+
+    #[test]
+    fn format_uppercase_char_preserves_case() {
+        assert_format('C'.into(), "C");
+        assert_format('E'.into(), "E");
+        assert_format('G'.into(), "G");
+        assert_format('N'.into(), "N");
+        assert_format('V'.into(), "V");
+    }
+
+    #[test]
+    fn format_special_chars() {
+        assert_format('/'.into(), "/");
+        assert_format('?'.into(), "?");
+        assert_format('!'.into(), "!");
+        assert_format(':'.into(), ":");
+    }
+
+    #[test]
+    fn format_ctrl_modifier() {
+        assert_format(KeyCombo::ctrl('d'), "Ctrl-d");
+        assert_format(KeyCombo::ctrl('u'), "Ctrl-u");
+    }
+
+    #[test]
+    fn format_named_keys() {
+        assert_format(KeyCode::Enter.into(), "Enter");
+        assert_format(KeyCode::Esc.into(), "Esc");
+        assert_format(KeyCode::Tab.into(), "Tab");
+    }
+
+    #[test]
+    fn format_pending_sequence() {
+        let binding = KeyBinding::Pending { prefix: 'g', key: 'g' };
+        assert_eq!(format_key_binding(&binding), "gg");
+
+        let binding = KeyBinding::Pending { prefix: 'z', key: 'o' };
+        assert_eq!(format_key_binding(&binding), "zo");
+
+        let binding = KeyBinding::Pending { prefix: 'g', key: 'C' };
+        assert_eq!(format_key_binding(&binding), "gC");
+    }
+
+    #[test]
+    fn format_super_key() {
+        assert_format(KeyCombo::super_key(KeyCode::Up), "Cmd-Up");
+        assert_format(KeyCombo::super_key(KeyCode::Down), "Cmd-Down");
     }
 }

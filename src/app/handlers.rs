@@ -1,5 +1,5 @@
-use crossterm::event::{KeyCode, KeyModifiers};
-use tui_textarea::Input;
+use crossterm::event::KeyCode;
+use tui_textarea::{Input, Key};
 
 use crate::components::comment_input::CommentAction;
 use crate::event::AppEvent;
@@ -59,16 +59,16 @@ impl App {
 
     fn handle_review_confirm_key(&mut self, key: crossterm::event::KeyEvent) {
         if self.review_confirm.with_body {
-            let is_submit = matches!(key.code,
-                KeyCode::Char('s') if key.modifiers.contains(KeyModifiers::CONTROL)
-            );
-            if is_submit {
-                self.confirm_review_submit();
-            } else if key.code == KeyCode::Esc {
-                self.review_confirm.hide();
-            } else {
-                let input: Input = key.into();
-                self.review_confirm.handle_input(input);
+            let input: Input = key.into();
+            match input {
+                Input { key: Key::Esc, .. } => self.review_confirm.hide(),
+                Input { key: Key::Enter, ctrl: true, .. } => {
+                    self.review_confirm.handle_input(
+                        Input { key: Key::Enter, ctrl: false, alt: false, shift: false }
+                    );
+                }
+                Input { key: Key::Enter, .. } => self.confirm_review_submit(),
+                _ => self.review_confirm.handle_input(input),
             }
         } else {
             match key.code {
