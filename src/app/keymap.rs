@@ -538,7 +538,14 @@ impl Keymap {
 
         // ── Global keys (all panels) ──────────────────────────────────
         defs.extend([
-            B::global(&command::quit, vec![Single('q'.into())]),
+            B::multi(
+                vec![Single('q'.into())],
+                vec![
+                    S::on(Diff, &command::quit),
+                    S::on(Picker, &command::quit),
+                    S::on(Description, &command::description),
+                ],
+            ),
             B::multi(
                 vec![Single(KeyCode::Esc.into())],
                 vec![
@@ -729,11 +736,10 @@ impl Keymap {
                 "suggest",
             ),
             B::diff_ctx(&command::expand, vec![Single('E'.into())], RowContext::Code),
-            B::diff_ctx_bar(
+            B::diff_ctx(
                 &command::visual,
                 vec![Single('v'.into()), Single('V'.into())],
                 RowContext::Code,
-                "visual",
             ),
             B::diff_ctx_bar(
                 &command::toggle_comment,
@@ -777,8 +783,8 @@ impl Keymap {
         defs.push(B::multi(
             vec![Single('d'.into())],
             vec![
-                S::on(Diff, &command::description).bar("desc"),
-                S::on(Picker, &command::description),
+                S::on(Diff, &command::description).bar("description"),
+                S::on(Picker, &command::description).bar("description"),
                 S::on(Description, &command::description),
             ],
         ));
