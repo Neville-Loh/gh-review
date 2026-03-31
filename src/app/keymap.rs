@@ -716,7 +716,7 @@ impl Keymap {
             B::diff(&command::unapprove, vec![Single('u'.into())]),
             B::multi(
                 vec![Single('C'.into())],
-                vec![S::on(Diff, &command::comment).bar("comment")],
+                vec![S::on(Diff, &command::comment)],
             ),
         ]);
 

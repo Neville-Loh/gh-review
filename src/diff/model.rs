@@ -228,6 +228,7 @@ fn wrap_body_lines(
 pub fn build_display_rows(
     files: &[DiffFile],
     existing_comments: &[ExistingComment],
+    review_body_comments: &[ExistingComment],
     pending_comments: &[ReviewComment],
     expanded_threads: &std::collections::HashSet<u64>,
     expanded_pending: &std::collections::HashSet<usize>,
@@ -386,11 +387,12 @@ pub fn build_display_rows(
         }
     }
 
-    // Collect file-level comments (line: None) -- not attached to any diff line.
+    // Collect file-level comments (line: None) and review body comments.
     // Filter out auto-generated Graphite stack comments.
     let orphan_comments: Vec<&ExistingComment> = existing_comments
         .iter()
         .filter(|c| c.line.is_none() && !graphite::is_graphite_stack_comment(&c.body))
+        .chain(review_body_comments.iter())
         .collect();
 
     if !orphan_comments.is_empty() {

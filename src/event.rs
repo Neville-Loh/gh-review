@@ -15,6 +15,7 @@ pub enum AppEvent {
     PrLoaded {
         pr: u64,
         data: Box<crate::types::PrMetadata>,
+        review_body_comments: Vec<crate::types::ExistingComment>,
     },
     FilesLoaded {
         pr: u64,
@@ -32,6 +33,10 @@ pub enum AppEvent {
     ThreadsLoaded {
         pr: u64,
         data: std::collections::HashMap<u64, crate::types::ThreadInfo>,
+    },
+    ReviewBodiesLoaded {
+        pr: u64,
+        data: Vec<crate::types::ExistingComment>,
     },
     ThreadResolveToggled,
     ReviewDismissed,

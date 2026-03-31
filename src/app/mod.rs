@@ -73,6 +73,7 @@ pub struct App {
     pub(crate) pr_meta: Option<PrMetadata>,
     pub(crate) files: Vec<DiffFile>,
     pub(crate) existing_comments: Vec<ExistingComment>,
+    pub(crate) review_body_comments: Vec<ExistingComment>,
     pub(crate) pending_comments: Vec<ReviewComment>,
     pub(crate) thread_map: HashMap<u64, ThreadInfo>,
 
@@ -118,6 +119,7 @@ impl App {
             pr_meta: None,
             files: Vec::new(),
             existing_comments: Vec::new(),
+            review_body_comments: Vec::new(),
             pending_comments: Vec::new(),
             thread_map: HashMap::new(),
             file_picker: FilePicker::new(),
@@ -156,10 +158,11 @@ impl App {
             let r = repo.clone();
             tokio::spawn(async move {
                 match crate::gh::fetch_pr_data(&r, pr).await {
-                    Ok((meta, threads)) => {
+                    Ok((meta, threads, review_bodies)) => {
                         let _ = tx.send(AppEvent::PrLoaded {
                             pr,
                             data: Box::new(meta),
+                            review_body_comments: review_bodies,
                         });
                         let _ = tx.send(AppEvent::ThreadsLoaded {
                             pr,
@@ -219,7 +222,8 @@ impl App {
             AppEvent::Key(key) => self.handle_key(key),
             AppEvent::Resize(_, _) => {}
             AppEvent::Tick => {}
-            AppEvent::PrLoaded { pr, data: meta } if pr == self.pr_number => {
+            AppEvent::PrLoaded { pr, data: meta, review_body_comments } if pr == self.pr_number => {
+                self.review_body_comments = review_body_comments;
                 let branch_info = format!("{} → {}", meta.base.ref_name, meta.head.ref_name);
                 self.description_panel.load(
                     &meta.title,
@@ -258,11 +262,16 @@ impl App {
                 self.thread_map = threads;
                 self.rebuild_display();
             }
+            AppEvent::ReviewBodiesLoaded { pr, data } if pr == self.pr_number => {
+                self.review_body_comments = data;
+                self.rebuild_display();
+            }
             // Stale events from a previously active PR -- discard
             AppEvent::PrLoaded { .. }
             | AppEvent::FilesLoaded { .. }
             | AppEvent::CommentsLoaded { .. }
-            | AppEvent::ThreadsLoaded { .. } => {}
+            | AppEvent::ThreadsLoaded { .. }
+            | AppEvent::ReviewBodiesLoaded { .. } => {}
             AppEvent::StackPrefetchLoaded(snapshots) => {
                 for (pr_number, snapshot) in snapshots {
                     self.stack
@@ -320,6 +329,7 @@ impl App {
         self.diff_view.rebuild_rows(
             &self.files,
             &self.existing_comments,
+            &self.review_body_comments,
             &self.pending_comments,
             &self.thread_map,
         );
@@ -432,6 +442,7 @@ impl App {
             self.pr_meta = None;
             self.files.clear();
             self.existing_comments.clear();
+            self.review_body_comments.clear();
             self.pending_comments.clear();
             self.thread_map.clear();
             self.file_picker.set_files(&self.files);
@@ -462,6 +473,9 @@ impl App {
         tokio::spawn(async move {
             if let Ok(comments) = crate::gh::fetch_review_comments(&repo, pr).await {
                 let _ = tx.send(AppEvent::CommentsLoaded { pr, data: comments });
+            }
+            if let Ok(bodies) = crate::gh::fetch_review_bodies(&repo, pr).await {
+                let _ = tx.send(AppEvent::ReviewBodiesLoaded { pr, data: bodies });
             }
         });
         self.reload_threads();
