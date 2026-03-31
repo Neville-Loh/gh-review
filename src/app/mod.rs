@@ -151,16 +151,27 @@ impl App {
         let repo = self.repo.clone();
         let pr = self.pr_number;
 
-        self.spawn_fetch("PR", |r, p| {
-            Box::pin(async move {
-                crate::gh::fetch_pr_metadata(&r, p)
-                    .await
-                    .map(|meta| AppEvent::PrLoaded {
-                        pr: p,
-                        data: Box::new(meta),
-                    })
-            })
-        });
+        {
+            let tx = self.tx.clone();
+            let r = repo.clone();
+            tokio::spawn(async move {
+                match crate::gh::fetch_pr_data(&r, pr).await {
+                    Ok((meta, threads)) => {
+                        let _ = tx.send(AppEvent::PrLoaded {
+                            pr,
+                            data: Box::new(meta),
+                        });
+                        let _ = tx.send(AppEvent::ThreadsLoaded {
+                            pr,
+                            data: threads,
+                        });
+                    }
+                    Err(e) => {
+                        let _ = tx.send(AppEvent::Error(format!("PR data: {e}")));
+                    }
+                }
+            });
+        }
         self.spawn_fetch("files", |r, p| {
             Box::pin(async move {
                 crate::gh::fetch_pr_files(&r, p)
@@ -175,14 +186,7 @@ impl App {
                     .map(|c| AppEvent::CommentsLoaded { pr: p, data: c })
             })
         });
-        self.spawn_fetch("threads", |r, p| {
-            Box::pin(async move {
-                crate::gh::fetch_review_threads(&r, p)
-                    .await
-                    .map(|t| AppEvent::ThreadsLoaded { pr: p, data: t })
-            })
-        });
-        let _ = (repo, pr); // used by closures above via self
+        let _ = (repo, pr);
     }
 
     fn spawn_fetch<F>(&self, label: &'static str, make_future: F)
@@ -217,8 +221,12 @@ impl App {
             AppEvent::Tick => {}
             AppEvent::PrLoaded { pr, data: meta } if pr == self.pr_number => {
                 let branch_info = format!("{} → {}", meta.base.ref_name, meta.head.ref_name);
-                self.description_panel
-                    .load(&meta.title, meta.body.as_deref(), &branch_info);
+                self.description_panel.load(
+                    &meta.title,
+                    meta.body.as_deref(),
+                    &branch_info,
+                    meta.reviewers.clone(),
+                );
                 self.stack
                     .insert_titles(&[(self.pr_number, meta.title.clone())]);
                 self.stack.insert_status(
@@ -389,6 +397,7 @@ impl App {
                 &snapshot.meta.title,
                 snapshot.meta.body.as_deref(),
                 &branch_info,
+                snapshot.meta.reviewers.clone(),
             );
             self.pr_meta = Some(snapshot.meta);
             self.files = snapshot.files;
