@@ -21,8 +21,8 @@ pub fn edit_in_external(content: &str, file_ext: &str) -> Result<String> {
 
     let file_path = dir.join(format!("suggest.{file_ext}"));
     {
-        let mut f = std::fs::File::create(&file_path)
-            .context("Failed to create temp file for editor")?;
+        let mut f =
+            std::fs::File::create(&file_path).context("Failed to create temp file for editor")?;
         f.write_all(content.as_bytes())?;
         f.flush()?;
     }

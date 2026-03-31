@@ -1,9 +1,7 @@
 use anyhow::Result;
 use crossterm::{
+    event::{KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags},
     execute,
-    event::{
-        KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
-    },
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{Terminal, backend::CrosstermBackend};
@@ -92,7 +90,8 @@ pub fn handle_action(
                         CursorRegion::Title => app.description_panel.title = value.clone(),
                         CursorRegion::Body => app.description_panel.body = value.clone(),
                     }
-                    app.description_panel.rebuild_content(app.description_panel.last_width.max(60));
+                    app.description_panel
+                        .rebuild_content(app.description_panel.last_width.max(60));
 
                     let tx = app.tx.clone();
                     let repo = app.repo.clone();
@@ -108,9 +107,9 @@ pub fn handle_action(
                                 });
                             }
                             Err(e) => {
-                                let _ = tx.send(crate::event::AppEvent::Error(
-                                    format!("Failed to update {display}: {e}"),
-                                ));
+                                let _ = tx.send(crate::event::AppEvent::Error(format!(
+                                    "Failed to update {display}: {e}"
+                                )));
                             }
                         }
                     });

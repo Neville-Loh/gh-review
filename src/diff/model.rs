@@ -6,7 +6,9 @@ use unicode_width::UnicodeWidthStr;
 use super::layout;
 use super::wrap::wrap_spans;
 use crate::stack::graphite;
-use crate::types::{DiffFile, DiffLine, ExistingComment, LineKind, ReviewComment, Side, ThreadInfo};
+use crate::types::{
+    DiffFile, DiffLine, ExistingComment, LineKind, ReviewComment, Side, ThreadInfo,
+};
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -105,16 +107,30 @@ fn emit_expanded_thread(
 
     if !body_text.trim().is_empty() {
         let md_lines = render_markdown_to_lines(&body_text);
-        rows.extend(wrap_body_lines(md_lines, body_max_width, false, is_resolved, is_pending));
+        rows.extend(wrap_body_lines(
+            md_lines,
+            body_max_width,
+            false,
+            is_resolved,
+            is_pending,
+        ));
     }
 
     if let Some(ref suggested) = sug_text
         && let Some(ctx) = &sug_ctx
     {
         let original_lines = suggestion::collect_original_lines(
-            ctx.hunk_lines, ctx.current_line, ctx.lineno, ctx.start_line,
+            ctx.hunk_lines,
+            ctx.current_line,
+            ctx.lineno,
+            ctx.start_line,
         );
-        rows.extend(suggestion::build_rows(ctx.file_path, &original_lines, suggested, is_resolved));
+        rows.extend(suggestion::build_rows(
+            ctx.file_path,
+            &original_lines,
+            suggested,
+            is_resolved,
+        ));
     }
 
     for reply in replies {
@@ -133,7 +149,13 @@ fn emit_expanded_thread(
             is_reply: true,
         });
         let reply_lines = render_markdown_to_lines(&reply.body);
-        rows.extend(wrap_body_lines(reply_lines, body_max_width, true, is_resolved, is_pending));
+        rows.extend(wrap_body_lines(
+            reply_lines,
+            body_max_width,
+            true,
+            is_resolved,
+            is_pending,
+        ));
     }
 
     rows.push(blank_body_row(is_resolved, is_pending));
@@ -299,7 +321,8 @@ pub fn build_display_rows(
                         });
 
                         if is_expanded {
-                            let replies: Vec<&ExistingComment> = thread_comments.iter().skip(1).copied().collect();
+                            let replies: Vec<&ExistingComment> =
+                                thread_comments.iter().skip(1).copied().collect();
                             emit_expanded_thread(
                                 &mut rows,
                                 &root.body,
@@ -407,7 +430,8 @@ pub fn build_display_rows(
             });
 
             if is_expanded {
-                let replies: Vec<&ExistingComment> = thread_comments.iter().skip(1).copied().collect();
+                let replies: Vec<&ExistingComment> =
+                    thread_comments.iter().skip(1).copied().collect();
                 emit_expanded_thread(
                     &mut rows,
                     &root.body,

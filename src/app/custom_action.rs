@@ -77,10 +77,7 @@ pub fn resolve_custom_actions(raw: &[RawAction]) -> ResolvedActions {
                     ));
                 }
                 None => {
-                    warnings.push(format!(
-                        "Invalid key for custom action: {:?}",
-                        action.key
-                    ));
+                    warnings.push(format!("Invalid key for custom action: {:?}", action.key));
                 }
             }
         }
@@ -88,7 +85,11 @@ pub fn resolve_custom_actions(raw: &[RawAction]) -> ResolvedActions {
         all.push(custom);
     }
 
-    ResolvedActions { keyed, all, warnings }
+    ResolvedActions {
+        keyed,
+        all,
+        warnings,
+    }
 }
 
 impl App {

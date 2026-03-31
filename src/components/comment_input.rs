@@ -81,7 +81,9 @@ impl CommentInput {
         side: crate::types::Side,
         original_content: &str,
     ) {
-        let content = original_content.strip_prefix(' ').unwrap_or(original_content);
+        let content = original_content
+            .strip_prefix(' ')
+            .unwrap_or(original_content);
         let lines = vec![content.to_string()];
         self.textarea = TextArea::new(lines);
         self.textarea.set_cursor_line_style(Style::default());

@@ -36,10 +36,16 @@ impl RowContext {
     }
 
     /// Convenience for binding definitions that target any comment row.
-    pub const COMMENT: Self = Self::Comment(CommentState { is_pending: false, is_resolved: false });
+    pub const COMMENT: Self = Self::Comment(CommentState {
+        is_pending: false,
+        is_resolved: false,
+    });
 
     /// Convenience for binding definitions that target any suggestion row.
-    pub const SUGGESTION: Self = Self::Suggestion(CommentState { is_pending: false, is_resolved: false });
+    pub const SUGGESTION: Self = Self::Suggestion(CommentState {
+        is_pending: false,
+        is_resolved: false,
+    });
 }
 
 #[derive(Debug, Clone, PartialEq)]

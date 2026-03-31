@@ -1,5 +1,5 @@
-use crossterm::event::{KeyCode, KeyModifiers};
 use crokey::{KeyCombination, KeyCombinationFormat, OneToThree};
+use crossterm::event::{KeyCode, KeyModifiers};
 
 use crate::app::keymap::KeyCombo;
 
@@ -88,7 +88,10 @@ mod tests {
         match result {
             KeyBinding::Single(combo) => {
                 assert_eq!(combo.code, expected_code, "code mismatch for {input:?}");
-                assert_eq!(combo.modifiers, expected_mods, "modifiers mismatch for {input:?}");
+                assert_eq!(
+                    combo.modifiers, expected_mods,
+                    "modifiers mismatch for {input:?}"
+                );
             }
             KeyBinding::Pending { prefix, key } => {
                 panic!("expected Single for {input:?}, got Pending({prefix}{key})");
@@ -165,7 +168,11 @@ mod tests {
 
     #[test]
     fn cmd_ctrl_chord() {
-        assert_single("Cmd-Ctrl-s", KeyCode::Char('s'), KeyModifiers::SUPER | KeyModifiers::CONTROL);
+        assert_single(
+            "Cmd-Ctrl-s",
+            KeyCode::Char('s'),
+            KeyModifiers::SUPER | KeyModifiers::CONTROL,
+        );
         assert_single("Cmd-s", KeyCode::Char('s'), KeyModifiers::SUPER);
     }
 
@@ -182,11 +189,7 @@ mod tests {
 
     #[test]
     fn multiple_modifiers() {
-        assert_single(
-            "Cmd-Shift-1",
-            KeyCode::Char('1'),
-            KeyModifiers::SUPER,
-        );
+        assert_single("Cmd-Shift-1", KeyCode::Char('1'), KeyModifiers::SUPER);
         assert_single(
             "Ctrl-Alt-d",
             KeyCode::Char('d'),

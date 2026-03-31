@@ -210,7 +210,10 @@ impl DiffView {
         for i in start..self.display_rows.len() {
             if matches!(
                 self.display_rows[i],
-                DisplayRow::CommentHeader { is_reply: false, .. }
+                DisplayRow::CommentHeader {
+                    is_reply: false,
+                    ..
+                }
             ) {
                 self.cursor = i;
                 return;
@@ -226,7 +229,10 @@ impl DiffView {
         for i in (0..self.cursor).rev() {
             if matches!(
                 self.display_rows[i],
-                DisplayRow::CommentHeader { is_reply: false, .. }
+                DisplayRow::CommentHeader {
+                    is_reply: false,
+                    ..
+                }
             ) {
                 self.cursor = i;
                 return;
@@ -271,8 +277,7 @@ impl DiffView {
     fn is_blank_row(rows: &[DisplayRow], idx: usize) -> bool {
         match rows.get(idx) {
             Some(DisplayRow::DiffLine { line, .. }) => line.content.trim().is_empty(),
-            Some(DisplayRow::FileHeader { .. })
-            | Some(DisplayRow::HunkHeader { .. }) => true,
+            Some(DisplayRow::FileHeader { .. }) | Some(DisplayRow::HunkHeader { .. }) => true,
             _ => false,
         }
     }

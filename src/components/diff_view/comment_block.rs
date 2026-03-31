@@ -12,9 +12,7 @@ use ratatui::{
     widgets::{Block, BorderType, Borders, Padding, Paragraph, Widget, Wrap},
 };
 
-use crate::diff::layout::{
-    COMMENT_BLOCK_MAX_WIDTH, COMMENT_BLOCK_RIGHT_MARGIN, GUTTER_WIDTH,
-};
+use crate::diff::layout::{COMMENT_BLOCK_MAX_WIDTH, COMMENT_BLOCK_RIGHT_MARGIN, GUTTER_WIDTH};
 use crate::diff::renderer::DisplayRow;
 use crate::theme::Theme;
 
@@ -52,7 +50,9 @@ impl CommentBlock {
         let has_top = self.header_idx >= scroll;
         let has_bottom = self.footer_idx < end;
 
-        let available = area.width.saturating_sub(GUTTER_WIDTH as u16 + COMMENT_BLOCK_RIGHT_MARGIN);
+        let available = area
+            .width
+            .saturating_sub(GUTTER_WIDTH as u16 + COMMENT_BLOCK_RIGHT_MARGIN);
         let width = available.min(COMMENT_BLOCK_MAX_WIDTH);
 
         let block_rect = Rect::new(
@@ -124,8 +124,7 @@ impl CommentBlock {
         Widget::render(block, rect, buf);
 
         if inner.height > 0 && inner.width > 0 {
-            let body = Paragraph::new(self.body_lines.clone())
-                .wrap(Wrap { trim: true });
+            let body = Paragraph::new(self.body_lines.clone()).wrap(Wrap { trim: true });
             Widget::render(body, inner, buf);
         }
     }
@@ -164,7 +163,15 @@ pub(super) fn find_comment_blocks(
             ..
         } = &rows[i]
         {
-            if let Some(block) = collect_block(rows, i, scroll, *is_pending, *is_resolved, author, *reply_count) {
+            if let Some(block) = collect_block(
+                rows,
+                i,
+                scroll,
+                *is_pending,
+                *is_resolved,
+                author,
+                *reply_count,
+            ) {
                 i = block.footer_idx + 1;
                 blocks.push(block);
             } else {
@@ -255,11 +262,23 @@ fn find_block_start_before(rows: &[DisplayRow], scroll: usize) -> usize {
 
 fn thread_colors(is_pending: bool, is_resolved: bool) -> (Color, Color, Color) {
     if is_pending {
-        (Theme::pending_bg(), Theme::pending_accent(), Theme::pending_fg())
+        (
+            Theme::pending_bg(),
+            Theme::pending_accent(),
+            Theme::pending_fg(),
+        )
     } else if is_resolved {
-        (Theme::resolved_bg(), Theme::resolved_accent(), Theme::resolved_fg())
+        (
+            Theme::resolved_bg(),
+            Theme::resolved_accent(),
+            Theme::resolved_fg(),
+        )
     } else {
-        (Theme::comment_bg(), Theme::comment_accent(), Theme::comment_fg())
+        (
+            Theme::comment_bg(),
+            Theme::comment_accent(),
+            Theme::comment_fg(),
+        )
     }
 }
 

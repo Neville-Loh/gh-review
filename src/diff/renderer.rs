@@ -33,7 +33,9 @@ pub fn render_unified_row(
     is_selected: bool,
 ) -> Line<'static> {
     let base_line = match row {
-        DisplayRow::FileHeader { path, collapsed, .. } => {
+        DisplayRow::FileHeader {
+            path, collapsed, ..
+        } => {
             let indicator = if *collapsed { "▶" } else { "▼" };
             Line::from(vec![Span::styled(
                 format!("{indicator} ─── {path} ───"),
@@ -66,7 +68,12 @@ pub fn render_unified_row(
             body_preview,
             ..
         } => render_collapsed_header(
-            author, *is_pending, *is_resolved, *reply_count, body_preview, _width,
+            author,
+            *is_pending,
+            *is_resolved,
+            *reply_count,
+            body_preview,
+            _width,
         ),
 
         // Expanded comment rows are rendered by the Block widget layer.
@@ -111,11 +118,23 @@ fn render_collapsed_header(
     width: u16,
 ) -> Line<'static> {
     let (bg, border_color, fg) = if is_pending {
-        (Theme::pending_bg(), Theme::pending_accent(), Theme::pending_fg())
+        (
+            Theme::pending_bg(),
+            Theme::pending_accent(),
+            Theme::pending_fg(),
+        )
     } else if is_resolved {
-        (Theme::resolved_bg(), Theme::resolved_accent(), Theme::resolved_fg())
+        (
+            Theme::resolved_bg(),
+            Theme::resolved_accent(),
+            Theme::resolved_fg(),
+        )
     } else {
-        (Theme::comment_bg(), Theme::comment_accent(), Theme::comment_fg())
+        (
+            Theme::comment_bg(),
+            Theme::comment_accent(),
+            Theme::comment_fg(),
+        )
     };
     let bs = Style::default().fg(border_color);
     let box_inner = (width as usize).saturating_sub(GUTTER_WIDTH + 2);
@@ -138,14 +157,8 @@ fn render_collapsed_header(
     Line::from(vec![
         Span::styled(" ".repeat(GUTTER_WIDTH), Style::default()),
         Span::styled("╶", bs),
-        Span::styled(
-            format!("{header} "),
-            Style::default().fg(fg).bg(bg),
-        ),
-        Span::styled(
-            "─".repeat(fill),
-            Style::default().fg(border_color).bg(bg),
-        ),
+        Span::styled(format!("{header} "), Style::default().fg(fg).bg(bg)),
+        Span::styled("─".repeat(fill), Style::default().fg(border_color).bg(bg)),
         Span::styled("╴", bs),
     ])
     .style(Style::default().bg(bg))

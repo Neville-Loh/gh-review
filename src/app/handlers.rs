@@ -159,7 +159,12 @@ impl App {
     pub(crate) fn update_search_status(&mut self) {
         let (curr, total) = self.diff_view.search.match_info();
         if total > 0 {
-            self.status.info(format!("/{} [{}/{}]", self.search_bar.input, curr + 1, total));
+            self.status.info(format!(
+                "/{} [{}/{}]",
+                self.search_bar.input,
+                curr + 1,
+                total
+            ));
         }
     }
 
@@ -169,9 +174,15 @@ impl App {
                 self.search_bar.close();
                 let (curr, total) = self.diff_view.search.match_info();
                 if total > 0 {
-                    self.status.info(format!("/{} [{}/{}]", self.search_bar.input, curr + 1, total));
+                    self.status.info(format!(
+                        "/{} [{}/{}]",
+                        self.search_bar.input,
+                        curr + 1,
+                        total
+                    ));
                 } else if !self.search_bar.input.is_empty() {
-                    self.status.error(format!("Pattern not found: {}", self.search_bar.input));
+                    self.status
+                        .error(format!("Pattern not found: {}", self.search_bar.input));
                 }
             }
             KeyCode::Esc => {
@@ -442,14 +453,12 @@ impl App {
                                 let _ = tx.send(AppEvent::ReviewDismissed);
                             }
                             Err(e) => {
-                                let _ =
-                                    tx.send(AppEvent::Error(format!("Dismiss failed: {e}")));
+                                let _ = tx.send(AppEvent::Error(format!("Dismiss failed: {e}")));
                             }
                         }
                     } else {
-                        let _ = tx.send(AppEvent::Error(
-                            "No approval found to dismiss".to_string(),
-                        ));
+                        let _ =
+                            tx.send(AppEvent::Error("No approval found to dismiss".to_string()));
                     }
                 }
                 Err(e) => {

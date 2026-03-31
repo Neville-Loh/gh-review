@@ -93,10 +93,7 @@ pub fn build_rows(
     let mut rows = Vec::new();
 
     rows.push(DisplayRow::CommentBodyLine {
-        line: Line::from(Span::styled(
-            "✏ Suggested change:",
-            Theme::comment_marker(),
-        )),
+        line: Line::from(Span::styled("✏ Suggested change:", Theme::comment_marker())),
         is_reply: false,
         is_resolved,
         is_pending: false,
@@ -249,11 +246,7 @@ fn apply_char_diff(
 }
 
 fn common_affixes(a: &str, b: &str) -> (usize, usize) {
-    let prefix = a
-        .bytes()
-        .zip(b.bytes())
-        .take_while(|(x, y)| x == y)
-        .count();
+    let prefix = a.bytes().zip(b.bytes()).take_while(|(x, y)| x == y).count();
 
     let a_rem = &a[prefix..];
     let b_rem = &b[prefix..];
