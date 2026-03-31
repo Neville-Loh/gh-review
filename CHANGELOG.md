@@ -5,20 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.2.2] - 2026-03-31
 
 ### Added
 
 - **PR status in title bar** — colored status icon (approved, changes requested, draft, merged, closed) derived from GitHub's `reviewDecision` field (#63)
+- **Reviewer avatars in description panel** — shows each reviewer with a per-reviewer status icon (✓ approved, ✗ changes requested, ○ commented, ● pending) fetched via GraphQL `latestReviews` (#68)
+- **`C` (uppercase) as comment hotkey** — opens an inline comment on the current line, same as `c` but available as an alternative binding (#69)
+- **Review body comments** — review submissions with a body (e.g. "Approved with comment") now appear as top-level comments in the diff view, prefixed with `[Approved]` or `[Changes Requested]`
 
 ### Changed
 
-- **Description panel default off** — `d` toggles the description panel on/off; default is now hidden; navigate with arrow keys when open
-- **`q` scoped to panel** — pressing `q` in the description panel closes the panel instead of quitting the app
+- **Description panel default off** — `d` toggles the description panel on/off; default is now hidden; navigate with arrow keys when open (#68)
+- **`q` scoped to panel** — pressing `q` in the description panel closes the panel instead of quitting the app (#67)
 - **Context-aware review bar hints** — status bar hints are now generated from the keymap with conditions (e.g. "discard" only shown on pending comments, "resolve"/"unresolve" adapts to thread state); replaces hardcoded hint strings (#64)
-- **Help overlay reformatted** — hardcoded layout with stack navigation section when a stack is detected; cleaner presentation
+- **Help overlay reformatted** — hardcoded layout with stack navigation section when a stack is detected; cleaner presentation (#65)
 - **`RowContext` carries state** — `Comment` and `Suggestion` variants now include `CommentState` (is_pending, is_resolved) for context-sensitive key dispatch and hint rendering
 - **`PrStatus` consolidated** — merged review decision into `PrStatus` with `Approved` and `ChangesRequested` variants; added `icon()` and `color()` methods (#63)
+
+### Fixed
+
+- **Top-level comments not always displayed** — review body comments (from approve/request-changes submissions) were sometimes missing from the diff view; now fetched via a dedicated `reviews` GraphQL field and displayed as orphan comments
 
 ## [0.2.1] - 2026-03-30
 
