@@ -106,12 +106,66 @@ fn parse_reviewers(pr: &serde_json::Value) -> Vec<ReviewerInfo> {
     reviewers
 }
 
-/// Fetch PR metadata and review threads in a single GraphQL call.
-/// Returns `(PrMetadata, HashMap<comment_db_id, ThreadInfo>)`.
+fn parse_review_bodies(pr: &serde_json::Value) -> Vec<ExistingComment> {
+    let mut comments = Vec::new();
+    if let Some(nodes) = pr["reviews"]["nodes"].as_array() {
+        for node in nodes {
+            let body = node["body"].as_str().unwrap_or("");
+            if body.trim().is_empty() {
+                continue;
+            }
+            let login = node["author"]["login"].as_str().unwrap_or("").to_string();
+            let state = node["state"].as_str().unwrap_or("");
+            let prefix = match state {
+                "APPROVED" => "[Approved] ",
+                "CHANGES_REQUESTED" => "[Changes Requested] ",
+                _ => "",
+            };
+            comments.push(ExistingComment {
+                id: node["databaseId"].as_u64().unwrap_or(0),
+                path: String::new(),
+                line: None,
+                side: None,
+                start_line: None,
+                body: format!("{prefix}{body}"),
+                user: PrUser { login },
+                created_at: node["createdAt"].as_str().unwrap_or("").to_string(),
+                in_reply_to_id: None,
+            });
+        }
+    }
+    comments
+}
+
+/// Fetch only review bodies (lightweight reload after submitting a review).
+pub async fn fetch_review_bodies(repo: &str, pr_number: u64) -> Result<Vec<ExistingComment>> {
+    let (owner, name) = repo
+        .split_once('/')
+        .context("Invalid repo format, expected owner/name")?;
+
+    let query = r#"
+        query($owner: String!, $name: String!, $pr: Int!) {
+            repository(owner: $owner, name: $name) {
+                pullRequest(number: $pr) {
+                    reviews(first: 50) {
+                        nodes { databaseId author { login } state body createdAt }
+                    }
+                }
+            }
+        }
+    "#;
+
+    let vars = serde_json::json!({ "owner": owner, "name": name, "pr": pr_number });
+    let result = run_graphql(query, &vars).await?;
+    let pr = &result["data"]["repository"]["pullRequest"];
+    Ok(parse_review_bodies(pr))
+}
+
+/// Fetch PR metadata, review threads, and review bodies in a single GraphQL call.
 pub async fn fetch_pr_data(
     repo: &str,
     pr_number: u64,
-) -> Result<(PrMetadata, HashMap<u64, ThreadInfo>)> {
+) -> Result<(PrMetadata, HashMap<u64, ThreadInfo>, Vec<ExistingComment>)> {
     let (owner, name) = repo
         .split_once('/')
         .context("Invalid repo format, expected owner/name")?;
@@ -135,6 +189,9 @@ pub async fn fetch_pr_data(
                     latestReviews(first: 20) {
                         nodes { author { login } state }
                     }
+                    reviews(first: 50) {
+                        nodes { databaseId author { login } state body createdAt }
+                    }
                     reviewThreads(first: 100, after: $cursor) {
                         pageInfo { hasNextPage endCursor }
                         nodes {
@@ -153,6 +210,7 @@ pub async fn fetch_pr_data(
     let mut thread_map = HashMap::new();
     let mut cursor: Option<String> = None;
     let mut meta: Option<PrMetadata> = None;
+    let mut review_body_comments: Vec<ExistingComment> = Vec::new();
 
     loop {
         let vars = serde_json::json!({
@@ -190,6 +248,8 @@ pub async fn fetch_pr_data(
                 changed_files: pr["changedFiles"].as_u64().map(|v| v as usize),
                 reviewers,
             });
+
+            review_body_comments = parse_review_bodies(pr);
         }
 
         let threads = &pr["reviewThreads"];
@@ -223,7 +283,7 @@ pub async fn fetch_pr_data(
     }
 
     let meta = meta.context("GraphQL returned no pullRequest data")?;
-    Ok((meta, thread_map))
+    Ok((meta, thread_map, review_body_comments))
 }
 
 pub async fn update_pr(repo: &str, pr_number: u64, field: &str, value: &str) -> Result<()> {

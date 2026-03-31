@@ -50,6 +50,7 @@ impl DiffView {
         &mut self,
         files: &[DiffFile],
         existing_comments: &[ExistingComment],
+        review_body_comments: &[ExistingComment],
         pending_comments: &[ReviewComment],
         thread_map: &HashMap<u64, ThreadInfo>,
     ) {
@@ -57,6 +58,7 @@ impl DiffView {
         self.display_rows = build_display_rows(
             files,
             existing_comments,
+            review_body_comments,
             pending_comments,
             &self.expanded_threads,
             &self.expanded_pending,
