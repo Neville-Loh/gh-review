@@ -275,7 +275,7 @@ pub async fn fetch_prs_batch(
     // Build aliased query: pr123: pullRequest(number: 123) { ...PrFields }
     let fragment = r#"
 fragment PrFields on PullRequest {
-    number title body state isDraft
+    number title body state isDraft reviewDecision
     headRefName baseRefName headRefOid baseRefOid
     additions deletions changedFiles
     author { login }
@@ -324,6 +324,7 @@ fragment PrFields on PullRequest {
             body: pr["body"].as_str().map(String::from),
             state: pr["state"].as_str().unwrap_or("").to_string(),
             draft: pr["isDraft"].as_bool().unwrap_or(false),
+            review_decision: pr["reviewDecision"].as_str().map(String::from),
             head: PrRef {
                 sha: pr["headRefOid"].as_str().unwrap_or("").to_string(),
                 ref_name: pr["headRefName"].as_str().unwrap_or("").to_string(),

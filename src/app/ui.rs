@@ -118,6 +118,7 @@ impl App {
                 &self.keymap,
                 self.focus,
                 self.description_panel.cursor_region(),
+                !self.stack.is_empty(),
             );
         }
 
@@ -132,7 +133,7 @@ impl App {
 
         if self.show_help {
             let custom_help = self.keymap.custom_action_help();
-            HelpOverlay::draw(size, frame.buffer_mut(), &self.keymap, &custom_help);
+            HelpOverlay::draw(size, frame.buffer_mut(), &self.keymap, &custom_help, !self.stack.is_empty());
         }
     }
 
@@ -140,10 +141,20 @@ impl App {
         use ratatui::style::Color;
 
         let spans = if let Some(ref meta) = self.pr_meta {
-            let mut s = vec![Span::styled(
-                format!(" {} #{} — {} ", self.repo, meta.number, meta.title),
-                crate::theme::Theme::title(),
-            )];
+            let status = self.stack.status(self.pr_number).unwrap_or(
+                crate::stack::PrStatus::from_metadata(&meta.state, meta.draft, meta.review_decision.as_deref()),
+            );
+            let mut s = vec![
+                Span::styled(" ", crate::theme::Theme::title()),
+                Span::styled(
+                    format!("{} ", status.icon()),
+                    ratatui::style::Style::default().fg(status.color()),
+                ),
+                Span::styled(
+                    format!("{} #{} — {} ", self.repo, meta.number, meta.title),
+                    crate::theme::Theme::title(),
+                ),
+            ];
             if let Some(additions) = meta.additions {
                 s.push(Span::styled(
                     format!("+{additions}"),

@@ -196,7 +196,7 @@ impl App {
                 self.stack.insert_titles(&[(self.pr_number, meta.title.clone())]);
                 self.stack.insert_status(
                     self.pr_number,
-                    crate::stack::PrStatus::from_metadata(&meta.state, meta.draft),
+                    crate::stack::PrStatus::from_metadata(&meta.state, meta.draft, meta.review_decision.as_deref()),
                 );
                 self.pr_meta = Some(*meta);
                 self.loading = false;
@@ -229,7 +229,7 @@ impl App {
                     self.stack.insert_titles(&[(pr_number, snapshot.meta.title.clone())]);
                     self.stack.insert_status(
                         pr_number,
-                        crate::stack::PrStatus::from_metadata(&snapshot.meta.state, snapshot.meta.draft),
+                        crate::stack::PrStatus::from_metadata(&snapshot.meta.state, snapshot.meta.draft, snapshot.meta.review_decision.as_deref()),
                     );
                     self.pr_cache.insert(pr_number, snapshot);
                 }

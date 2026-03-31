@@ -25,9 +25,10 @@ impl ReviewBar {
         keymap: &Keymap,
         focus: Focus,
         desc_region: CursorRegion,
+        has_stack: bool,
     ) {
         let mut spans = if focus == Focus::Description {
-            Self::description_hints(desc_region, keymap)
+            Self::description_hints(desc_region, keymap, has_stack)
         } else {
             Self::context_hints(context, keymap)
         };
@@ -69,17 +70,26 @@ impl ReviewBar {
         spans
     }
 
-    fn description_hints(region: CursorRegion, keymap: &Keymap) -> Vec<Span<'static>> {
+    fn description_hints(region: CursorRegion, keymap: &Keymap, has_stack: bool) -> Vec<Span<'static>> {
         let region_name = match region {
             CursorRegion::Title => "title",
             CursorRegion::Body => "body",
         };
         let edit_key = keymap.key_label("edit_description");
-        vec![
+        let mut spans = vec![
             Span::styled(format!(" [{edit_key}]"), Theme::review_bar_key()),
             Span::styled(format!(" edit {region_name} "), Theme::review_bar_label()),
-            Span::styled("[Esc]", Theme::review_bar_key()),
-            Span::styled(" close ", Theme::review_bar_label()),
-        ]
+        ];
+        if has_stack {
+            let up_key = keymap.key_label("stack_up");
+            let down_key = keymap.key_label("stack_down");
+            spans.push(Span::styled(format!("[{up_key}]"), Theme::review_bar_key()));
+            spans.push(Span::styled(" stack↑ ", Theme::review_bar_label()));
+            spans.push(Span::styled(format!("[{down_key}]"), Theme::review_bar_key()));
+            spans.push(Span::styled(" stack↓ ", Theme::review_bar_label()));
+        }
+        spans.push(Span::styled("[Esc]", Theme::review_bar_key()));
+        spans.push(Span::styled(" close ", Theme::review_bar_label()));
+        spans
     }
 }

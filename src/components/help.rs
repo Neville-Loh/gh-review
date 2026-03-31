@@ -16,8 +16,9 @@ impl HelpOverlay {
         buf: &mut Buffer,
         keymap: &Keymap,
         custom_actions: &[(String, String)],
+        has_stack: bool,
     ) {
-        let bindings = keymap.help_bindings();
+        let bindings = keymap.help_bindings(has_stack);
 
         let total_lines = bindings.len() + if custom_actions.is_empty() { 0 } else { 1 + custom_actions.len() };
 

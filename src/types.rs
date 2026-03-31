@@ -142,6 +142,8 @@ pub struct PrMetadata {
     pub state: String,
     #[serde(default)]
     pub draft: bool,
+    #[serde(default, rename = "reviewDecision")]
+    pub review_decision: Option<String>,
     pub head: PrRef,
     pub base: PrRef,
     pub user: PrUser,
