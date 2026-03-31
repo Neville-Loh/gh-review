@@ -258,16 +258,20 @@ impl DiffView {
     }
 
     pub fn current_context(&self) -> crate::types::RowContext {
-        use crate::types::RowContext;
+        use crate::types::{CommentState, RowContext};
         match self.display_rows.get(self.cursor) {
             Some(DisplayRow::FileHeader { .. }) => RowContext::File,
             Some(DisplayRow::DiffLine { .. })
             | Some(DisplayRow::HunkHeader { .. })
             | Some(DisplayRow::ExpandHint { .. }) => RowContext::Code,
-            Some(DisplayRow::CommentBodyLine { is_suggestion: true, .. }) => RowContext::Suggestion,
-            Some(DisplayRow::CommentHeader { .. })
-            | Some(DisplayRow::CommentBodyLine { .. })
-            | Some(DisplayRow::CommentFooter { .. }) => RowContext::Comment,
+            Some(DisplayRow::CommentBodyLine { is_suggestion: true, is_pending, is_resolved, .. }) =>
+                RowContext::Suggestion(CommentState { is_pending: *is_pending, is_resolved: *is_resolved }),
+            Some(DisplayRow::CommentHeader { is_pending, is_resolved, .. }) =>
+                RowContext::Comment(CommentState { is_pending: *is_pending, is_resolved: *is_resolved }),
+            Some(DisplayRow::CommentBodyLine { is_pending, is_resolved, .. }) =>
+                RowContext::Comment(CommentState { is_pending: *is_pending, is_resolved: *is_resolved }),
+            Some(DisplayRow::CommentFooter { is_pending, is_resolved, .. }) =>
+                RowContext::Comment(CommentState { is_pending: *is_pending, is_resolved: *is_resolved }),
             None => RowContext::Code,
         }
     }

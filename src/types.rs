@@ -1,20 +1,45 @@
 use serde::Deserialize;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CommentState {
+    pub is_pending: bool,
+    pub is_resolved: bool,
+}
+
+#[derive(Debug, Clone, Copy)]
 pub enum RowContext {
     File,
     Code,
-    Comment,
-    Suggestion,
+    Comment(CommentState),
+    Suggestion(CommentState),
 }
 
 impl RowContext {
+    /// Coarse match for key dispatch: ignores inner CommentState.
     pub fn matches(self, binding_ctx: RowContext) -> bool {
-        if self == binding_ctx {
-            return true;
-        }
-        self == RowContext::Suggestion && binding_ctx == RowContext::Comment
+        use RowContext::*;
+        matches!(
+            (self, binding_ctx),
+            (File, File)
+                | (Code, Code)
+                | (Comment(_), Comment(_))
+                | (Suggestion(_), Suggestion(_))
+                | (Suggestion(_), Comment(_))
+        )
     }
+
+    pub fn comment_state(self) -> CommentState {
+        match self {
+            RowContext::Comment(cs) | RowContext::Suggestion(cs) => cs,
+            _ => CommentState::default(),
+        }
+    }
+
+    /// Convenience for binding definitions that target any comment row.
+    pub const COMMENT: Self = Self::Comment(CommentState { is_pending: false, is_resolved: false });
+
+    /// Convenience for binding definitions that target any suggestion row.
+    pub const SUGGESTION: Self = Self::Suggestion(CommentState { is_pending: false, is_resolved: false });
 }
 
 #[derive(Debug, Clone, PartialEq)]

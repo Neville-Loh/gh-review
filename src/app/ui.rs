@@ -33,8 +33,7 @@ impl App {
 
         self.draw_title(frame, main_layout[0]);
 
-        let desc_open = self.description_panel.visible
-            && self.focus == Focus::Description;
+        let desc_open = self.description_panel.visible;
         let content_constraints = if desc_open {
             vec![
                 Constraint::Length(30),
@@ -117,7 +116,6 @@ impl App {
                 &self.status,
                 &self.keymap,
                 self.focus,
-                self.description_panel.cursor_region(),
                 !self.stack.is_empty(),
             );
         }
