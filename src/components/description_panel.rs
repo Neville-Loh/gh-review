@@ -157,23 +157,14 @@ impl DescriptionPanel {
         }
     }
 
-    fn render_line(
-        &self,
-        idx: usize,
-        x: u16,
-        y: u16,
-        width: u16,
-        focused: bool,
-        buf: &mut Buffer,
-    ) {
+    fn render_line(&self, idx: usize, x: u16, y: u16, width: u16, focused: bool, buf: &mut Buffer) {
         let cl = &self.content_lines[idx];
         if focused && idx == self.cursor {
             let mut spans = vec![Span::styled("▌", Theme::selected_cursor())];
             spans.extend(
-                cl.line
-                    .spans
-                    .iter()
-                    .map(|s| Span::styled(s.content.clone(), s.style.patch(Theme::selected_line()))),
+                cl.line.spans.iter().map(|s| {
+                    Span::styled(s.content.clone(), s.style.patch(Theme::selected_line()))
+                }),
             );
             buf.set_line(x, y, &Line::from(spans), width);
         } else {
@@ -225,7 +216,9 @@ impl DescriptionPanel {
                 format!("#{} {name}", pr.pr_number)
             };
             let text_style = if is_current {
-                Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::DarkGray)
             };
@@ -277,7 +270,9 @@ fn build_title_lines(title: &str, branch_info: &str, max_w: usize) -> Vec<Conten
         lines.push(ContentLine {
             line: Line::from(Span::styled(
                 wl,
-                Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
             )),
             region: CursorRegion::Title,
         });
@@ -310,7 +305,9 @@ fn build_body_lines(body: &str, max_w: usize) -> Vec<ContentLine> {
         return vec![ContentLine {
             line: Line::from(Span::styled(
                 "No description provided.",
-                Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC),
+                Style::default()
+                    .fg(Color::DarkGray)
+                    .add_modifier(Modifier::ITALIC),
             )),
             region: CursorRegion::Body,
         }];

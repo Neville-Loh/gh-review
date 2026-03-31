@@ -359,8 +359,11 @@ pub fn request_changes(app: &mut App) {
 }
 
 pub fn request_changes_with_comment(app: &mut App) {
-    app.review_confirm
-        .show_with_body(ReviewEvent::RequestChanges, app.pending_comments.len(), true);
+    app.review_confirm.show_with_body(
+        ReviewEvent::RequestChanges,
+        app.pending_comments.len(),
+        true,
+    );
 }
 
 pub fn submit(app: &mut App) {

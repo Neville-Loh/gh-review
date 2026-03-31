@@ -19,8 +19,8 @@ use crate::event::AppEvent;
 use std::collections::HashMap;
 
 use crate::config::{Config, load_user_config};
-use custom_action::resolve_custom_actions;
 use crate::types::{DiffFile, ExistingComment, PrMetadata, ReviewComment, ThreadInfo};
+use custom_action::resolve_custom_actions;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum Focus {
@@ -151,36 +151,61 @@ impl App {
         let repo = self.repo.clone();
         let pr = self.pr_number;
 
-        self.spawn_fetch("PR", |r, p| Box::pin(async move {
-            crate::gh::fetch_pr_metadata(&r, p).await
-                .map(|meta| AppEvent::PrLoaded { pr: p, data: Box::new(meta) })
-        }));
-        self.spawn_fetch("files", |r, p| Box::pin(async move {
-            crate::gh::fetch_pr_files(&r, p).await
-                .map(|files| AppEvent::FilesLoaded { pr: p, data: files })
-        }));
-        self.spawn_fetch("comments", |r, p| Box::pin(async move {
-            crate::gh::fetch_review_comments(&r, p).await
-                .map(|c| AppEvent::CommentsLoaded { pr: p, data: c })
-        }));
-        self.spawn_fetch("threads", |r, p| Box::pin(async move {
-            crate::gh::fetch_review_threads(&r, p).await
-                .map(|t| AppEvent::ThreadsLoaded { pr: p, data: t })
-        }));
+        self.spawn_fetch("PR", |r, p| {
+            Box::pin(async move {
+                crate::gh::fetch_pr_metadata(&r, p)
+                    .await
+                    .map(|meta| AppEvent::PrLoaded {
+                        pr: p,
+                        data: Box::new(meta),
+                    })
+            })
+        });
+        self.spawn_fetch("files", |r, p| {
+            Box::pin(async move {
+                crate::gh::fetch_pr_files(&r, p)
+                    .await
+                    .map(|files| AppEvent::FilesLoaded { pr: p, data: files })
+            })
+        });
+        self.spawn_fetch("comments", |r, p| {
+            Box::pin(async move {
+                crate::gh::fetch_review_comments(&r, p)
+                    .await
+                    .map(|c| AppEvent::CommentsLoaded { pr: p, data: c })
+            })
+        });
+        self.spawn_fetch("threads", |r, p| {
+            Box::pin(async move {
+                crate::gh::fetch_review_threads(&r, p)
+                    .await
+                    .map(|t| AppEvent::ThreadsLoaded { pr: p, data: t })
+            })
+        });
         let _ = (repo, pr); // used by closures above via self
     }
 
     fn spawn_fetch<F>(&self, label: &'static str, make_future: F)
     where
-        F: FnOnce(String, u64) -> std::pin::Pin<Box<dyn std::future::Future<Output = anyhow::Result<AppEvent>> + Send>> + Send + 'static,
+        F: FnOnce(
+                String,
+                u64,
+            ) -> std::pin::Pin<
+                Box<dyn std::future::Future<Output = anyhow::Result<AppEvent>> + Send>,
+            > + Send
+            + 'static,
     {
         let tx = self.tx.clone();
         let repo = self.repo.clone();
         let pr = self.pr_number;
         tokio::spawn(async move {
             match make_future(repo, pr).await {
-                Ok(event) => { let _ = tx.send(event); }
-                Err(e) => { let _ = tx.send(AppEvent::Error(format!("Failed to load {label}: {e}"))); }
+                Ok(event) => {
+                    let _ = tx.send(event);
+                }
+                Err(e) => {
+                    let _ = tx.send(AppEvent::Error(format!("Failed to load {label}: {e}")));
+                }
             }
         });
     }
@@ -192,11 +217,17 @@ impl App {
             AppEvent::Tick => {}
             AppEvent::PrLoaded { pr, data: meta } if pr == self.pr_number => {
                 let branch_info = format!("{} → {}", meta.base.ref_name, meta.head.ref_name);
-                self.description_panel.load(&meta.title, meta.body.as_deref(), &branch_info);
-                self.stack.insert_titles(&[(self.pr_number, meta.title.clone())]);
+                self.description_panel
+                    .load(&meta.title, meta.body.as_deref(), &branch_info);
+                self.stack
+                    .insert_titles(&[(self.pr_number, meta.title.clone())]);
                 self.stack.insert_status(
                     self.pr_number,
-                    crate::stack::PrStatus::from_metadata(&meta.state, meta.draft, meta.review_decision.as_deref()),
+                    crate::stack::PrStatus::from_metadata(
+                        &meta.state,
+                        meta.draft,
+                        meta.review_decision.as_deref(),
+                    ),
                 );
                 self.pr_meta = Some(*meta);
                 self.loading = false;
@@ -226,10 +257,15 @@ impl App {
             | AppEvent::ThreadsLoaded { .. } => {}
             AppEvent::StackPrefetchLoaded(snapshots) => {
                 for (pr_number, snapshot) in snapshots {
-                    self.stack.insert_titles(&[(pr_number, snapshot.meta.title.clone())]);
+                    self.stack
+                        .insert_titles(&[(pr_number, snapshot.meta.title.clone())]);
                     self.stack.insert_status(
                         pr_number,
-                        crate::stack::PrStatus::from_metadata(&snapshot.meta.state, snapshot.meta.draft, snapshot.meta.review_decision.as_deref()),
+                        crate::stack::PrStatus::from_metadata(
+                            &snapshot.meta.state,
+                            snapshot.meta.draft,
+                            snapshot.meta.review_decision.as_deref(),
+                        ),
                     );
                     self.pr_cache.insert(pr_number, snapshot);
                 }
@@ -345,8 +381,15 @@ impl App {
     fn restore_from_cache(&mut self, pr_number: u64) -> bool {
         if let Some(snapshot) = self.pr_cache.take(pr_number) {
             self.pr_number = pr_number;
-            let branch_info = format!("{} → {}", snapshot.meta.base.ref_name, snapshot.meta.head.ref_name);
-            self.description_panel.load(&snapshot.meta.title, snapshot.meta.body.as_deref(), &branch_info);
+            let branch_info = format!(
+                "{} → {}",
+                snapshot.meta.base.ref_name, snapshot.meta.head.ref_name
+            );
+            self.description_panel.load(
+                &snapshot.meta.title,
+                snapshot.meta.body.as_deref(),
+                &branch_info,
+            );
             self.pr_meta = Some(snapshot.meta);
             self.files = snapshot.files;
             self.existing_comments = snapshot.comments;

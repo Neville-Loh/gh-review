@@ -9,9 +9,9 @@ use std::collections::HashMap;
 
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
+use super::Focus;
 use super::command::{self, Command};
 use super::custom_action::{CustomAction, ResolvedActions};
-use super::Focus;
 use crate::config::{KeyBinding, UserConfig, format_key_binding, parse_key_string};
 use crate::types::RowContext;
 
@@ -110,7 +110,12 @@ struct ScopeBinding {
 
 impl ScopeBinding {
     fn on(panel: Panel, command: &'static Command) -> Self {
-        Self { panel, command, bar_hint: "", condition: HintCondition::Always }
+        Self {
+            panel,
+            command,
+            bar_hint: "",
+            condition: HintCondition::Always,
+        }
     }
 
     fn bar(mut self, label: &'static str) -> Self {
@@ -249,12 +254,7 @@ impl Keymap {
         keymap
     }
 
-    pub fn lookup(
-        &self,
-        key: &KeyEvent,
-        focus: Focus,
-        context: RowContext,
-    ) -> LookupResult {
+    pub fn lookup(&self, key: &KeyEvent, focus: Focus, context: RowContext) -> LookupResult {
         let combo = KeyCombo::from(key);
 
         if matches!(focus, Focus::DiffView | Focus::Description)
@@ -354,19 +354,21 @@ impl Keymap {
                     }
                     && (has_stack || !e.command_name.starts_with("stack_"))
             })
-            .filter_map(|e| {
-                match e.condition {
-                    HintCondition::Always => Some((e.bar_hint, e.key_label.as_str())),
-                    HintCondition::WhenPending => {
-                        cs.is_pending.then_some((e.bar_hint, e.key_label.as_str()))
-                    }
-                    HintCondition::WhenHasPending => {
-                        has_pending.then_some((e.bar_hint, e.key_label.as_str()))
-                    }
-                    HintCondition::ResolveToggle => {
-                        let label = if cs.is_resolved { "unresolve" } else { "resolve" };
-                        Some((label, e.key_label.as_str()))
-                    }
+            .filter_map(|e| match e.condition {
+                HintCondition::Always => Some((e.bar_hint, e.key_label.as_str())),
+                HintCondition::WhenPending => {
+                    cs.is_pending.then_some((e.bar_hint, e.key_label.as_str()))
+                }
+                HintCondition::WhenHasPending => {
+                    has_pending.then_some((e.bar_hint, e.key_label.as_str()))
+                }
+                HintCondition::ResolveToggle => {
+                    let label = if cs.is_resolved {
+                        "unresolve"
+                    } else {
+                        "resolve"
+                    };
+                    Some((label, e.key_label.as_str()))
                 }
             })
             .collect()
@@ -388,28 +390,75 @@ impl Keymap {
         let mut items = vec![
             // Navigation
             (all("scroll_down"), "Scroll line"),
-            (format!("{} / {}", one("goto_first"), one("goto_last")), "Go to first / last line"),
-            (format!("{} / {}", one("half_page_down"), one("half_page_up")), "Half page down / up"),
-            (format!("{} / {}", one("full_page_down"), one("full_page_up")), "Full page down / up"),
-            (format!("{} / {} / {}", one("screen_top"), one("screen_middle"), one("screen_bottom")), "Screen top / middle / bottom"),
-            (format!("{} / {} / {}", one("center_cursor"), one("scroll_cursor_top"), one("scroll_cursor_bottom")), "Center / top / bottom cursor"),
+            (
+                format!("{} / {}", one("goto_first"), one("goto_last")),
+                "Go to first / last line",
+            ),
+            (
+                format!("{} / {}", one("half_page_down"), one("half_page_up")),
+                "Half page down / up",
+            ),
+            (
+                format!("{} / {}", one("full_page_down"), one("full_page_up")),
+                "Full page down / up",
+            ),
+            (
+                format!(
+                    "{} / {} / {}",
+                    one("screen_top"),
+                    one("screen_middle"),
+                    one("screen_bottom")
+                ),
+                "Screen top / middle / bottom",
+            ),
+            (
+                format!(
+                    "{} / {} / {}",
+                    one("center_cursor"),
+                    one("scroll_cursor_top"),
+                    one("scroll_cursor_bottom")
+                ),
+                "Center / top / bottom cursor",
+            ),
             (String::new(), ""),
             // Jumps
-            (format!("{} / {}", one("next_hunk"), one("prev_hunk")), "Next / previous hunk"),
-            (format!("{} / {}", one("next_paragraph"), one("prev_paragraph")), "Next / previous paragraph"),
-            (format!("{} / {}", one("next_change"), one("prev_change")), "Next / previous change"),
-            (format!("{} / {}", one("next_comment"), one("prev_comment")), "Next / previous comment"),
+            (
+                format!("{} / {}", one("next_hunk"), one("prev_hunk")),
+                "Next / previous hunk",
+            ),
+            (
+                format!("{} / {}", one("next_paragraph"), one("prev_paragraph")),
+                "Next / previous paragraph",
+            ),
+            (
+                format!("{} / {}", one("next_change"), one("prev_change")),
+                "Next / previous change",
+            ),
+            (
+                format!("{} / {}", one("next_comment"), one("prev_comment")),
+                "Next / previous comment",
+            ),
             (String::new(), ""),
             // Search
             (one("search_forward"), "Search forward in diff"),
             (one("search_backward"), "Search backward in diff"),
-            (format!("{} / {}", one("next_match_or_file"), one("prev_match_or_file")), "Next / prev match (or file)"),
+            (
+                format!(
+                    "{} / {}",
+                    one("next_match_or_file"),
+                    one("prev_match_or_file")
+                ),
+                "Next / prev match (or file)",
+            ),
             (one("escape"), "Clear search / cancel / quit"),
             (String::new(), ""),
             // Code actions
             (one("visual"), "Visual select (multi-line)"),
             (one("expand"), "Expand context (+10 lines)"),
-            (format!("{} / {}", one("fold_open"), one("fold_close")), "Open / close file fold"),
+            (
+                format!("{} / {}", one("fold_open"), one("fold_close")),
+                "Open / close file fold",
+            ),
             (String::new(), ""),
             // Review actions
             (one("comment_on_line"), "Comment on line"),
@@ -426,7 +475,10 @@ impl Keymap {
 
         if has_stack {
             items.push((String::new(), ""));
-            items.push((format!("{} / {}", one("stack_up"), one("stack_down")), "Navigate stack up / down"));
+            items.push((
+                format!("{} / {}", one("stack_up"), one("stack_down")),
+                "Navigate stack up / down",
+            ));
         }
 
         items
@@ -455,7 +507,9 @@ impl Keymap {
 
     /// Get all named custom actions for command bar completion.
     pub fn named_custom_actions(&self) -> impl Iterator<Item = &CustomAction> {
-        self.all_custom_actions.iter().filter(|a| !a.name.is_empty())
+        self.all_custom_actions
+            .iter()
+            .filter(|a| !a.name.is_empty())
     }
 
     /// Returns (key_label, description) pairs for all custom actions, for the help overlay.
@@ -463,8 +517,7 @@ impl Keymap {
         self.custom_actions
             .iter()
             .map(|(combo, action)| {
-                let label =
-                    format_key_binding(&KeyBinding::Single(combo.clone()));
+                let label = format_key_binding(&KeyBinding::Single(combo.clone()));
                 (label, action.description.clone())
             })
             .collect()
@@ -495,48 +548,81 @@ impl Keymap {
                 ],
             ),
             B::global(&command::switch_focus, vec![Single(KeyCode::Tab.into())]),
-            B::global(&command::prev_panel, vec![Single('h'.into()), Single(KeyCode::Left.into())]),
-            B::global(&command::next_panel, vec![Single('l'.into()), Single(KeyCode::Right.into())]),
-            B::global(&command::help, vec![
-                Single('!'.into()),
-                Single(KeyCombo { code: KeyCode::F(1), modifiers: KeyModifiers::NONE }),
-            ]),
+            B::global(
+                &command::prev_panel,
+                vec![Single('h'.into()), Single(KeyCode::Left.into())],
+            ),
+            B::global(
+                &command::next_panel,
+                vec![Single('l'.into()), Single(KeyCode::Right.into())],
+            ),
+            B::global(
+                &command::help,
+                vec![
+                    Single('!'.into()),
+                    Single(KeyCombo {
+                        code: KeyCode::F(1),
+                        modifiers: KeyModifiers::NONE,
+                    }),
+                ],
+            ),
             B::global(&command::open_browser, vec![Single('o'.into())]),
             B::picker(&command::help, vec![Single('?'.into())]),
         ]);
 
         // ── Navigation (per-panel scroll/page/jump) ───────────────────
         defs.extend([
-            B::multi(key_down, vec![
-                S::on(Diff, &command::scroll_down),
-                S::on(Picker, &command::picker_down),
-                S::on(Description, &command::desc_scroll_down),
-            ]),
-            B::multi(key_up, vec![
-                S::on(Diff, &command::scroll_up),
-                S::on(Picker, &command::picker_up),
-                S::on(Description, &command::desc_scroll_up),
-            ]),
-            B::multi(vec![Single(KeyCombo::ctrl('d'))], vec![
-                S::on(Diff, &command::half_page_down),
-                S::on(Description, &command::desc_page_down),
-            ]),
-            B::multi(vec![Single(KeyCombo::ctrl('u'))], vec![
-                S::on(Diff, &command::half_page_up),
-                S::on(Description, &command::desc_page_up),
-            ]),
-            B::multi(vec![Single(KeyCombo::ctrl('f'))], vec![
-                S::on(Diff, &command::full_page_down),
-                S::on(Description, &command::desc_page_down),
-            ]),
-            B::multi(vec![Single(KeyCombo::ctrl('b'))], vec![
-                S::on(Diff, &command::full_page_up),
-                S::on(Description, &command::desc_page_up),
-            ]),
-            B::multi(vec![Single('G'.into())], vec![
-                S::on(Diff, &command::goto_last),
-                S::on(Description, &command::desc_goto_last),
-            ]),
+            B::multi(
+                key_down,
+                vec![
+                    S::on(Diff, &command::scroll_down),
+                    S::on(Picker, &command::picker_down),
+                    S::on(Description, &command::desc_scroll_down),
+                ],
+            ),
+            B::multi(
+                key_up,
+                vec![
+                    S::on(Diff, &command::scroll_up),
+                    S::on(Picker, &command::picker_up),
+                    S::on(Description, &command::desc_scroll_up),
+                ],
+            ),
+            B::multi(
+                vec![Single(KeyCombo::ctrl('d'))],
+                vec![
+                    S::on(Diff, &command::half_page_down),
+                    S::on(Description, &command::desc_page_down),
+                ],
+            ),
+            B::multi(
+                vec![Single(KeyCombo::ctrl('u'))],
+                vec![
+                    S::on(Diff, &command::half_page_up),
+                    S::on(Description, &command::desc_page_up),
+                ],
+            ),
+            B::multi(
+                vec![Single(KeyCombo::ctrl('f'))],
+                vec![
+                    S::on(Diff, &command::full_page_down),
+                    S::on(Description, &command::desc_page_down),
+                ],
+            ),
+            B::multi(
+                vec![Single(KeyCombo::ctrl('b'))],
+                vec![
+                    S::on(Diff, &command::full_page_up),
+                    S::on(Description, &command::desc_page_up),
+                ],
+            ),
+            B::multi(
+                vec![Single('G'.into())],
+                vec![
+                    S::on(Diff, &command::goto_last),
+                    S::on(Description, &command::desc_goto_last),
+                ],
+            ),
             B::diff(&command::screen_top, vec![Single('H'.into())]),
             B::diff(&command::screen_middle, vec![Single('M'.into())]),
             B::diff(&command::screen_bottom, vec![Single('L'.into())]),
@@ -553,14 +639,20 @@ impl Keymap {
 
         // ── Jumps (diff + description) ────────────────────────────────
         defs.extend([
-            B::multi(vec![Single(']'.into())], vec![
-                S::on(Diff, &command::next_hunk),
-                S::on(Description, &command::desc_next_section),
-            ]),
-            B::multi(vec![Single('['.into())], vec![
-                S::on(Diff, &command::prev_hunk),
-                S::on(Description, &command::desc_prev_section),
-            ]),
+            B::multi(
+                vec![Single(']'.into())],
+                vec![
+                    S::on(Diff, &command::next_hunk),
+                    S::on(Description, &command::desc_next_section),
+                ],
+            ),
+            B::multi(
+                vec![Single('['.into())],
+                vec![
+                    S::on(Diff, &command::prev_hunk),
+                    S::on(Description, &command::desc_prev_section),
+                ],
+            ),
             B::diff(&command::next_paragraph, vec![Single('}'.into())]),
             B::diff(&command::prev_paragraph, vec![Single('{'.into())]),
             B::diff(&command::next_change, vec![Single(')'.into())]),
@@ -607,37 +699,78 @@ impl Keymap {
             ),
             B::multi(
                 vec![Single('s'.into())],
-                vec![S::on(Diff, &command::submit)
-                    .bar("submit")
-                    .when(HintCondition::WhenHasPending)],
+                vec![
+                    S::on(Diff, &command::submit)
+                        .bar("submit")
+                        .when(HintCondition::WhenHasPending),
+                ],
             ),
             B::diff(&command::unapprove, vec![Single('u'.into())]),
         ]);
 
         // ── Diff context-sensitive keys ───────────────────────────────
         defs.extend([
-            B::diff_ctx_bar(&command::fold_toggle, vec![Single(KeyCode::Enter.into())], RowContext::File, "fold"),
-            B::diff_ctx_bar(&command::comment_on_line, vec![Single('c'.into())], RowContext::Code, "comment"),
-            B::diff_ctx_bar(&command::suggest, vec![Single('e'.into())], RowContext::Code, "suggest"),
+            B::diff_ctx_bar(
+                &command::fold_toggle,
+                vec![Single(KeyCode::Enter.into())],
+                RowContext::File,
+                "fold",
+            ),
+            B::diff_ctx_bar(
+                &command::comment_on_line,
+                vec![Single('c'.into())],
+                RowContext::Code,
+                "comment",
+            ),
+            B::diff_ctx_bar(
+                &command::suggest,
+                vec![Single('e'.into())],
+                RowContext::Code,
+                "suggest",
+            ),
             B::diff_ctx(&command::expand, vec![Single('E'.into())], RowContext::Code),
-            B::diff_ctx_bar(&command::visual, vec![Single('v'.into()), Single('V'.into())], RowContext::Code, "visual"),
-            B::diff_ctx_bar(&command::toggle_comment, vec![Single(KeyCode::Enter.into())], RowContext::COMMENT, "toggle"),
-            B::diff_ctx_bar(&command::comment_on_line, vec![Single('c'.into())], RowContext::COMMENT, "reply"),
+            B::diff_ctx_bar(
+                &command::visual,
+                vec![Single('v'.into()), Single('V'.into())],
+                RowContext::Code,
+                "visual",
+            ),
+            B::diff_ctx_bar(
+                &command::toggle_comment,
+                vec![Single(KeyCode::Enter.into())],
+                RowContext::COMMENT,
+                "toggle",
+            ),
+            B::diff_ctx_bar(
+                &command::comment_on_line,
+                vec![Single('c'.into())],
+                RowContext::COMMENT,
+                "reply",
+            ),
             BindingDef {
                 keys: vec![Single('r'.into())],
-                scopes: vec![S::on(Diff, &command::resolve)
-                    .bar("resolve")
-                    .when(HintCondition::ResolveToggle)],
+                scopes: vec![
+                    S::on(Diff, &command::resolve)
+                        .bar("resolve")
+                        .when(HintCondition::ResolveToggle),
+                ],
                 context: Some(RowContext::COMMENT),
             },
             BindingDef {
                 keys: vec![Single('x'.into())],
-                scopes: vec![S::on(Diff, &command::discard)
-                    .bar("discard")
-                    .when(HintCondition::WhenPending)],
+                scopes: vec![
+                    S::on(Diff, &command::discard)
+                        .bar("discard")
+                        .when(HintCondition::WhenPending),
+                ],
                 context: Some(RowContext::COMMENT),
             },
-            B::diff_ctx_bar(&command::accept_suggestion, vec![Single('y'.into())], RowContext::SUGGESTION, "accept"),
+            B::diff_ctx_bar(
+                &command::accept_suggestion,
+                vec![Single('y'.into())],
+                RowContext::SUGGESTION,
+                "accept",
+            ),
         ]);
 
         // ── Description panel keys ────────────────────────────────────
@@ -656,17 +789,65 @@ impl Keymap {
 
         // ── Pending sequences (two-key combos) ────────────────────────
         defs.extend([
-            B::multi(vec![Pending { prefix: 'g', key: 'g' }], vec![
-                S::on(Diff, &command::goto_first),
-                S::on(Description, &command::desc_goto_first),
-            ]),
-            B::diff(&command::center_cursor, vec![Pending { prefix: 'z', key: 'z' }]),
-            B::diff(&command::scroll_cursor_top, vec![Pending { prefix: 'z', key: 't' }]),
-            B::diff(&command::scroll_cursor_bottom, vec![Pending { prefix: 'z', key: 'b' }]),
-            B::diff(&command::fold_open, vec![Pending { prefix: 'z', key: 'o' }]),
-            B::diff(&command::fold_close, vec![Pending { prefix: 'z', key: 'c' }]),
-            B::diff(&command::next_comment, vec![Pending { prefix: 'g', key: 'c' }]),
-            B::diff(&command::prev_comment, vec![Pending { prefix: 'g', key: 'C' }]),
+            B::multi(
+                vec![Pending {
+                    prefix: 'g',
+                    key: 'g',
+                }],
+                vec![
+                    S::on(Diff, &command::goto_first),
+                    S::on(Description, &command::desc_goto_first),
+                ],
+            ),
+            B::diff(
+                &command::center_cursor,
+                vec![Pending {
+                    prefix: 'z',
+                    key: 'z',
+                }],
+            ),
+            B::diff(
+                &command::scroll_cursor_top,
+                vec![Pending {
+                    prefix: 'z',
+                    key: 't',
+                }],
+            ),
+            B::diff(
+                &command::scroll_cursor_bottom,
+                vec![Pending {
+                    prefix: 'z',
+                    key: 'b',
+                }],
+            ),
+            B::diff(
+                &command::fold_open,
+                vec![Pending {
+                    prefix: 'z',
+                    key: 'o',
+                }],
+            ),
+            B::diff(
+                &command::fold_close,
+                vec![Pending {
+                    prefix: 'z',
+                    key: 'c',
+                }],
+            ),
+            B::diff(
+                &command::next_comment,
+                vec![Pending {
+                    prefix: 'g',
+                    key: 'c',
+                }],
+            ),
+            B::diff(
+                &command::prev_comment,
+                vec![Pending {
+                    prefix: 'g',
+                    key: 'C',
+                }],
+            ),
         ]);
 
         defs
@@ -745,11 +926,7 @@ impl Keymap {
         let mut bar_entries: Vec<BarEntry> = Vec::new();
 
         for def in &defs {
-            let key_label: String = def
-                .keys
-                .first()
-                .map(format_key_binding)
-                .unwrap_or_default();
+            let key_label: String = def.keys.first().map(format_key_binding).unwrap_or_default();
 
             if let Some(first) = def.scopes.first() {
                 let entry = labels.entry(first.command.name).or_default();
@@ -762,8 +939,8 @@ impl Keymap {
             }
 
             for sb in &def.scopes {
-                let has_bar = !sb.bar_hint.is_empty()
-                    || matches!(sb.condition, HintCondition::ResolveToggle);
+                let has_bar =
+                    !sb.bar_hint.is_empty() || matches!(sb.condition, HintCondition::ResolveToggle);
                 if has_bar {
                     bar_entries.push(BarEntry {
                         panel: sb.panel,
@@ -779,13 +956,10 @@ impl Keymap {
                     match key {
                         KeyBinding::Single(combo) => match sb.panel {
                             Panel::Diff => {
-                                diff_view
-                                    .entry(combo.clone())
-                                    .or_default()
-                                    .push(Binding {
-                                        command: sb.command,
-                                        context: def.context,
-                                    });
+                                diff_view.entry(combo.clone()).or_default().push(Binding {
+                                    command: sb.command,
+                                    context: def.context,
+                                });
                             }
                             Panel::Picker => {
                                 file_picker.insert(combo.clone(), sb.command);

@@ -41,10 +41,7 @@ impl App {
                 Constraint::Percentage(35),
             ]
         } else {
-            vec![
-                Constraint::Length(30),
-                Constraint::Min(0),
-            ]
+            vec![Constraint::Length(30), Constraint::Min(0)]
         };
         let content_layout = Layout::default()
             .direction(Direction::Horizontal)
@@ -82,11 +79,8 @@ impl App {
             self.focus == Focus::FilePicker,
         );
 
-        self.diff_view.draw(
-            diff_area,
-            frame.buffer_mut(),
-            self.focus == Focus::DiffView,
-        );
+        self.diff_view
+            .draw(diff_area, frame.buffer_mut(), self.focus == Focus::DiffView);
 
         if desc_open {
             self.description_panel.draw(
@@ -131,7 +125,13 @@ impl App {
 
         if self.show_help {
             let custom_help = self.keymap.custom_action_help();
-            HelpOverlay::draw(size, frame.buffer_mut(), &self.keymap, &custom_help, !self.stack.is_empty());
+            HelpOverlay::draw(
+                size,
+                frame.buffer_mut(),
+                &self.keymap,
+                &custom_help,
+                !self.stack.is_empty(),
+            );
         }
     }
 
@@ -139,9 +139,14 @@ impl App {
         use ratatui::style::Color;
 
         let spans = if let Some(ref meta) = self.pr_meta {
-            let status = self.stack.status(self.pr_number).unwrap_or(
-                crate::stack::PrStatus::from_metadata(&meta.state, meta.draft, meta.review_decision.as_deref()),
-            );
+            let status =
+                self.stack
+                    .status(self.pr_number)
+                    .unwrap_or(crate::stack::PrStatus::from_metadata(
+                        &meta.state,
+                        meta.draft,
+                        meta.review_decision.as_deref(),
+                    ));
             let mut s = vec![
                 Span::styled(" ", crate::theme::Theme::title()),
                 Span::styled(

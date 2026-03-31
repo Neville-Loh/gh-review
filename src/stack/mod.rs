@@ -92,7 +92,11 @@ impl StackState {
     }
 
     /// Load stack from comments using all known providers (currently Graphite).
-    pub fn load_from_comments(&mut self, comments: &[crate::types::ExistingComment], current_pr: u64) {
+    pub fn load_from_comments(
+        &mut self,
+        comments: &[crate::types::ExistingComment],
+        current_pr: u64,
+    ) {
         self.current_pr = current_pr;
         self.links = graphite::extract_stack(comments);
     }
@@ -125,20 +129,25 @@ impl StackState {
 
     /// PR number above the current one in the stack (toward newest).
     pub fn pr_above(&self) -> Option<u64> {
-        let idx = self.links.iter().position(|l| l.pr_number == self.current_pr)?;
+        let idx = self
+            .links
+            .iter()
+            .position(|l| l.pr_number == self.current_pr)?;
         self.links.get(idx + 1).map(|l| l.pr_number)
     }
 
     /// PR number below the current one in the stack (toward base/main).
     pub fn pr_below(&self) -> Option<u64> {
-        let idx = self.links.iter().position(|l| l.pr_number == self.current_pr)?;
+        let idx = self
+            .links
+            .iter()
+            .position(|l| l.pr_number == self.current_pr)?;
         if idx > 0 {
             Some(self.links[idx - 1].pr_number)
         } else {
             None
         }
     }
-
 }
 
 // ── PrCache ──────────────────────────────────────────────────────────

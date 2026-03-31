@@ -7,9 +7,9 @@ mod dirs;
 mod editor;
 mod event;
 mod gh;
-pub mod stack;
 mod highlight;
 mod search;
+pub mod stack;
 mod terminal;
 mod theme;
 mod types;
@@ -17,10 +17,8 @@ mod types;
 use anyhow::{Context, Result};
 use clap::Parser;
 use crossterm::{
+    event::{KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags},
     execute,
-    event::{
-        KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags,
-    },
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use ratatui::{Terminal, backend::CrosstermBackend};

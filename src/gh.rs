@@ -52,10 +52,7 @@ fn format_api_error(stdout: &str, stderr: &str) -> String {
     if let Some(msg) = try_extract_json_error(stderr) {
         return msg;
     }
-    let clean_stderr = stderr
-        .trim()
-        .strip_prefix("gh: ")
-        .unwrap_or(stderr.trim());
+    let clean_stderr = stderr.trim().strip_prefix("gh: ").unwrap_or(stderr.trim());
     let clean_stdout = stdout.trim();
     if !clean_stdout.is_empty() && clean_stdout != clean_stderr {
         format!("{clean_stderr}: {clean_stdout}")
@@ -354,10 +351,13 @@ fragment PrFields on PullRequest {
                     for (i, c) in comment_nodes.iter().enumerate() {
                         let db_id = c["databaseId"].as_u64().unwrap_or(0);
                         if i == 0 {
-                            threads.insert(db_id, ThreadInfo {
-                                thread_node_id: thread_id.clone(),
-                                is_resolved,
-                            });
+                            threads.insert(
+                                db_id,
+                                ThreadInfo {
+                                    thread_node_id: thread_id.clone(),
+                                    is_resolved,
+                                },
+                            );
                         }
                         let reply_to = c["replyTo"]["databaseId"].as_u64();
                         comments.push(ExistingComment {
@@ -405,10 +405,7 @@ fragment PrFields on PullRequest {
 
 /// Fetch review thread resolve status. Returns a map from root comment database ID
 /// to ThreadInfo (thread node_id + is_resolved).
-pub async fn fetch_review_threads(
-    repo: &str,
-    pr_number: u64,
-) -> Result<HashMap<u64, ThreadInfo>> {
+pub async fn fetch_review_threads(repo: &str, pr_number: u64) -> Result<HashMap<u64, ThreadInfo>> {
     let (owner, name) = repo
         .split_once('/')
         .context("Invalid repo format, expected owner/name")?;
@@ -450,13 +447,17 @@ pub async fn fetch_review_threads(
             for node in nodes {
                 let thread_id = node["id"].as_str().unwrap_or_default().to_string();
                 let is_resolved = node["isResolved"].as_bool().unwrap_or(false);
-                if let Some(first_comment) = node["comments"]["nodes"].as_array().and_then(|a| a.first())
+                if let Some(first_comment) =
+                    node["comments"]["nodes"].as_array().and_then(|a| a.first())
                     && let Some(db_id) = first_comment["databaseId"].as_u64()
                 {
-                    thread_map.insert(db_id, ThreadInfo {
-                        thread_node_id: thread_id,
-                        is_resolved,
-                    });
+                    thread_map.insert(
+                        db_id,
+                        ThreadInfo {
+                            thread_node_id: thread_id,
+                            is_resolved,
+                        },
+                    );
                 }
             }
         }
@@ -465,9 +466,7 @@ pub async fn fetch_review_threads(
             .as_bool()
             .unwrap_or(false);
         if has_next {
-            cursor = threads["pageInfo"]["endCursor"]
-                .as_str()
-                .map(String::from);
+            cursor = threads["pageInfo"]["endCursor"].as_str().map(String::from);
         } else {
             break;
         }
@@ -520,7 +519,10 @@ pub async fn apply_suggestion(
     let mut lines: Vec<&str> = file_content.lines().collect();
 
     if line_number == 0 || line_number > lines.len() {
-        bail!("Line {line_number} is out of range (file has {} lines)", lines.len());
+        bail!(
+            "Line {line_number} is out of range (file has {} lines)",
+            lines.len()
+        );
     }
 
     let suggestion_lines: Vec<&str> = suggestion.lines().collect();
@@ -548,7 +550,11 @@ pub async fn apply_suggestion(
         "branch": branch,
     });
     let json_str = serde_json::to_string(&json_body)?;
-    run_gh_with_stdin(&["api", &update_url, "-X", "PUT", "--input", "-"], &json_str).await?;
+    run_gh_with_stdin(
+        &["api", &update_url, "-X", "PUT", "--input", "-"],
+        &json_str,
+    )
+    .await?;
     Ok(())
 }
 

@@ -98,7 +98,9 @@ This stack of pull requests is managed by <a href="https://graphite.dev?utm-sour
 
     #[test]
     fn rejects_comment_mentioning_graphite_without_marker() {
-        assert!(!is_graphite_stack_comment("I used graphite to create this PR"));
+        assert!(!is_graphite_stack_comment(
+            "I used graphite to create this PR"
+        ));
     }
 
     #[test]
@@ -125,7 +127,8 @@ This stack of pull requests is managed by <a href="https://graphite.dev?utm-sour
 
     #[test]
     fn extracts_links_with_query_params() {
-        let body = r#"<a href="https://app.graphite.com/github/pr/org/repo/42?utm_source=test">link</a>"#;
+        let body =
+            r#"<a href="https://app.graphite.com/github/pr/org/repo/42?utm_source=test">link</a>"#;
         let links = extract_pr_links(body);
         assert_eq!(links.len(), 1);
         assert_eq!(links[0].pr_number, 42);
@@ -159,7 +162,9 @@ This stack of pull requests is managed by <a href="https://graphite.dev?utm-sour
                 side: None,
                 start_line: None,
                 body: "normal comment".to_string(),
-                user: crate::types::PrUser { login: "alice".to_string() },
+                user: crate::types::PrUser {
+                    login: "alice".to_string(),
+                },
                 created_at: String::new(),
                 in_reply_to_id: None,
             },
@@ -170,7 +175,9 @@ This stack of pull requests is managed by <a href="https://graphite.dev?utm-sour
                 side: None,
                 start_line: None,
                 body: REAL_GRAPHITE_COMMENT.to_string(),
-                user: crate::types::PrUser { login: "graphite-app".to_string() },
+                user: crate::types::PrUser {
+                    login: "graphite-app".to_string(),
+                },
                 created_at: String::new(),
                 in_reply_to_id: None,
             },

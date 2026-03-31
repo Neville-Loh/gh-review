@@ -85,11 +85,17 @@ impl DiffView {
             }
 
             let selected = global_idx == self.cursor;
-            let mut line =
-                render_unified_row(&self.display_rows[global_idx], &self.files, area.width, selected);
+            let mut line = render_unified_row(
+                &self.display_rows[global_idx],
+                &self.files,
+                area.width,
+                selected,
+            );
             line = self.search.highlight(line, global_idx);
             if let Some((lo, hi)) = visual
-                && global_idx >= lo && global_idx <= hi && !selected
+                && global_idx >= lo
+                && global_idx <= hi
+                && !selected
             {
                 line = Line::from(
                     line.spans
@@ -119,7 +125,8 @@ impl DiffView {
             ])
             .split(area);
 
-        let blocks = comment_block::find_comment_blocks(&self.display_rows, scroll, scroll + visible_height);
+        let blocks =
+            comment_block::find_comment_blocks(&self.display_rows, scroll, scroll + visible_height);
         let comment_rows: HashSet<usize> = blocks
             .iter()
             .flat_map(|b| b.header_idx..=b.footer_idx)
@@ -139,7 +146,9 @@ impl DiffView {
         let visual = self.visual_range();
         let apply_visual = |line: Line<'static>, gi: usize, selected: bool| -> Line<'static> {
             if let Some((lo, hi)) = visual
-                && gi >= lo && gi <= hi && !selected
+                && gi >= lo
+                && gi <= hi
+                && !selected
             {
                 return Line::from(
                     line.spans
@@ -308,20 +317,12 @@ impl DiffView {
             };
             let cb = &blocks[placement.block_idx];
             let num_rows = cb.footer_idx - cb.header_idx + 1;
-            let cursor_screen_y = if self.cursor >= cb.header_idx
-                && self.cursor <= cb.footer_idx
-            {
+            let cursor_screen_y = if self.cursor >= cb.header_idx && self.cursor <= cb.footer_idx {
                 Some(placement.screen_y + (self.cursor - cb.header_idx))
             } else {
                 None
             };
-            cb.render_sbs(
-                col_area,
-                buf,
-                placement.screen_y,
-                num_rows,
-                cursor_screen_y,
-            );
+            cb.render_sbs(col_area, buf, placement.screen_y, num_rows, cursor_screen_y);
         }
     }
 

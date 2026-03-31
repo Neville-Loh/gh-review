@@ -139,10 +139,8 @@ mod tests {
 
     #[test]
     fn parse_github_url_with_query_params() {
-        let (repo, pr) = parse_github_url(
-            "https://github.com/owner/repo/pull/99?diff=split&w=1",
-        )
-        .unwrap();
+        let (repo, pr) =
+            parse_github_url("https://github.com/owner/repo/pull/99?diff=split&w=1").unwrap();
         assert_eq!(repo, "owner/repo");
         assert_eq!(pr, 99);
     }

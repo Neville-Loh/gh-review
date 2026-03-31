@@ -209,9 +209,7 @@ impl Theme {
     }
 
     pub fn suggestion_added() -> Style {
-        Style::default()
-            .fg(Color::Green)
-            .bg(Color::Rgb(0, 30, 0))
+        Style::default().fg(Color::Green).bg(Color::Rgb(0, 30, 0))
     }
 
     pub fn suggestion_added_bg() -> Color {
@@ -223,9 +221,7 @@ impl Theme {
     }
 
     pub fn suggestion_removed() -> Style {
-        Style::default()
-            .fg(Color::Red)
-            .bg(Color::Rgb(30, 0, 0))
+        Style::default().fg(Color::Red).bg(Color::Rgb(30, 0, 0))
     }
 
     pub fn suggestion_removed_bg() -> Color {

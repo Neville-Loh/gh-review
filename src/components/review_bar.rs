@@ -5,8 +5,8 @@ use ratatui::{
     widgets::{Paragraph, Widget},
 };
 
-use crate::app::keymap::Keymap;
 use crate::app::Focus;
+use crate::app::keymap::Keymap;
 use crate::components::status_line::StatusLine;
 use crate::theme::Theme;
 use crate::types::RowContext;
@@ -29,12 +29,18 @@ impl ReviewBar {
         let pairs = keymap.bar_hints(focus, context, has_stack, has_pending);
         let mut spans: Vec<Span<'static>> = Vec::new();
         for (hint, key_label) in pairs {
-            spans.push(Span::styled(format!(" [{key_label}]"), Theme::review_bar_key()));
+            spans.push(Span::styled(
+                format!(" [{key_label}]"),
+                Theme::review_bar_key(),
+            ));
             spans.push(Span::styled(format!(" {hint} "), Theme::review_bar_label()));
         }
 
         let help_key = keymap.key_label("help");
-        spans.push(Span::styled(format!("[{help_key}]"), Theme::review_bar_key()));
+        spans.push(Span::styled(
+            format!("[{help_key}]"),
+            Theme::review_bar_key(),
+        ));
         spans.push(Span::styled(" help ", Theme::review_bar_label()));
 
         if pending_count > 0 {

@@ -117,7 +117,9 @@ impl DiffView {
     /// root header.
     pub fn toggle_comment_expand(&mut self) -> bool {
         let header_idx = match self.display_rows.get(self.cursor) {
-            Some(DisplayRow::CommentHeader { is_reply: false, .. }) => Some(self.cursor),
+            Some(DisplayRow::CommentHeader {
+                is_reply: false, ..
+            }) => Some(self.cursor),
             Some(DisplayRow::CommentHeader { is_reply: true, .. })
             | Some(DisplayRow::CommentBodyLine { .. })
             | Some(DisplayRow::CommentFooter { .. }) => self.find_root_header(self.cursor),
@@ -164,7 +166,9 @@ impl DiffView {
     fn find_root_header(&self, from: usize) -> Option<usize> {
         for i in (0..=from).rev() {
             match &self.display_rows[i] {
-                DisplayRow::CommentHeader { is_reply: false, .. } => return Some(i),
+                DisplayRow::CommentHeader {
+                    is_reply: false, ..
+                } => return Some(i),
                 DisplayRow::CommentHeader { is_reply: true, .. }
                 | DisplayRow::CommentBodyLine { .. }
                 | DisplayRow::CommentFooter { .. } => continue,
@@ -181,9 +185,7 @@ impl DiffView {
                 is_pending: true,
                 pending_idx: Some(idx),
                 ..
-            }) => Some(PendingCommentTarget {
-                pending_idx: *idx,
-            }),
+            }) => Some(PendingCommentTarget { pending_idx: *idx }),
             _ => {
                 for i in (0..self.cursor).rev() {
                     match self.display_rows.get(i) {
@@ -192,9 +194,7 @@ impl DiffView {
                             pending_idx: Some(idx),
                             ..
                         }) => {
-                            return Some(PendingCommentTarget {
-                                pending_idx: *idx,
-                            });
+                            return Some(PendingCommentTarget { pending_idx: *idx });
                         }
                         Some(DisplayRow::CommentBodyLine { .. })
                         | Some(DisplayRow::CommentFooter { .. }) => continue,
@@ -210,7 +210,11 @@ impl DiffView {
     pub fn thread_resolve_target(&self) -> Option<ThreadResolveTarget> {
         let row = self.display_rows.get(self.cursor)?;
         let search_from = match row {
-            DisplayRow::CommentHeader { thread_node_id, is_resolved, .. } => {
+            DisplayRow::CommentHeader {
+                thread_node_id,
+                is_resolved,
+                ..
+            } => {
                 if let Some(id) = thread_node_id {
                     return Some(ThreadResolveTarget {
                         thread_node_id: id.clone(),
@@ -224,7 +228,12 @@ impl DiffView {
         };
 
         for i in (0..search_from).rev() {
-            if let Some(DisplayRow::CommentHeader { thread_node_id, is_resolved, .. }) = self.display_rows.get(i) {
+            if let Some(DisplayRow::CommentHeader {
+                thread_node_id,
+                is_resolved,
+                ..
+            }) = self.display_rows.get(i)
+            {
                 if let Some(id) = thread_node_id {
                     return Some(ThreadResolveTarget {
                         thread_node_id: id.clone(),
@@ -235,7 +244,8 @@ impl DiffView {
                 continue;
             }
             match self.display_rows.get(i) {
-                Some(DisplayRow::CommentBodyLine { .. }) | Some(DisplayRow::CommentFooter { .. }) => continue,
+                Some(DisplayRow::CommentBodyLine { .. })
+                | Some(DisplayRow::CommentFooter { .. }) => continue,
                 _ => return None,
             }
         }
@@ -264,14 +274,39 @@ impl DiffView {
             Some(DisplayRow::DiffLine { .. })
             | Some(DisplayRow::HunkHeader { .. })
             | Some(DisplayRow::ExpandHint { .. }) => RowContext::Code,
-            Some(DisplayRow::CommentBodyLine { is_suggestion: true, is_pending, is_resolved, .. }) =>
-                RowContext::Suggestion(CommentState { is_pending: *is_pending, is_resolved: *is_resolved }),
-            Some(DisplayRow::CommentHeader { is_pending, is_resolved, .. }) =>
-                RowContext::Comment(CommentState { is_pending: *is_pending, is_resolved: *is_resolved }),
-            Some(DisplayRow::CommentBodyLine { is_pending, is_resolved, .. }) =>
-                RowContext::Comment(CommentState { is_pending: *is_pending, is_resolved: *is_resolved }),
-            Some(DisplayRow::CommentFooter { is_pending, is_resolved, .. }) =>
-                RowContext::Comment(CommentState { is_pending: *is_pending, is_resolved: *is_resolved }),
+            Some(DisplayRow::CommentBodyLine {
+                is_suggestion: true,
+                is_pending,
+                is_resolved,
+                ..
+            }) => RowContext::Suggestion(CommentState {
+                is_pending: *is_pending,
+                is_resolved: *is_resolved,
+            }),
+            Some(DisplayRow::CommentHeader {
+                is_pending,
+                is_resolved,
+                ..
+            }) => RowContext::Comment(CommentState {
+                is_pending: *is_pending,
+                is_resolved: *is_resolved,
+            }),
+            Some(DisplayRow::CommentBodyLine {
+                is_pending,
+                is_resolved,
+                ..
+            }) => RowContext::Comment(CommentState {
+                is_pending: *is_pending,
+                is_resolved: *is_resolved,
+            }),
+            Some(DisplayRow::CommentFooter {
+                is_pending,
+                is_resolved,
+                ..
+            }) => RowContext::Comment(CommentState {
+                is_pending: *is_pending,
+                is_resolved: *is_resolved,
+            }),
             None => RowContext::Code,
         }
     }

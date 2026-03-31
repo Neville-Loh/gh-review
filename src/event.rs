@@ -1,6 +1,6 @@
 use crossterm::event::{self, Event, KeyEvent, KeyEventKind};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -12,15 +12,27 @@ pub enum AppEvent {
     Resize(u16, u16),
     Tick,
 
-    PrLoaded { pr: u64, data: Box<crate::types::PrMetadata> },
-    FilesLoaded { pr: u64, data: Vec<crate::types::DiffFile> },
-    CommentsLoaded { pr: u64, data: Vec<crate::types::ExistingComment> },
+    PrLoaded {
+        pr: u64,
+        data: Box<crate::types::PrMetadata>,
+    },
+    FilesLoaded {
+        pr: u64,
+        data: Vec<crate::types::DiffFile>,
+    },
+    CommentsLoaded {
+        pr: u64,
+        data: Vec<crate::types::ExistingComment>,
+    },
     FileContentLoaded {
         path: String,
         base_content: String,
         head_content: String,
     },
-    ThreadsLoaded { pr: u64, data: std::collections::HashMap<u64, crate::types::ThreadInfo> },
+    ThreadsLoaded {
+        pr: u64,
+        data: std::collections::HashMap<u64, crate::types::ThreadInfo>,
+    },
     ThreadResolveToggled,
     ReviewDismissed,
     SuggestionAccepted,

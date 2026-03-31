@@ -20,7 +20,12 @@ impl HelpOverlay {
     ) {
         let bindings = keymap.help_bindings(has_stack);
 
-        let total_lines = bindings.len() + if custom_actions.is_empty() { 0 } else { 1 + custom_actions.len() };
+        let total_lines = bindings.len()
+            + if custom_actions.is_empty() {
+                0
+            } else {
+                1 + custom_actions.len()
+            };
 
         let width = 60u16.min(area.width.saturating_sub(4));
         let height = (total_lines as u16 + 5).min(area.height.saturating_sub(4));
