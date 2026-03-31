@@ -171,7 +171,7 @@ impl ReviewConfirm {
         Widget::render(Paragraph::new(header_lines), chunks[0], buf);
 
         let body_label = Line::from(vec![Span::styled(
-            "  Review body (optional):",
+            "  Review body:",
             Theme::review_bar_label(),
         )]);
         Widget::render(Paragraph::new(vec![body_label]), chunks[1], buf);
@@ -186,8 +186,10 @@ impl ReviewConfirm {
         self.textarea.widget().render(ta_area, buf);
 
         let help = Line::from(vec![
-            Span::styled("  Ctrl+S", Theme::review_bar_key()),
-            Span::styled(" confirm  ", Theme::review_bar_label()),
+            Span::styled("  Enter", Theme::review_bar_key()),
+            Span::styled(" submit  ", Theme::review_bar_label()),
+            Span::styled("Ctrl+Enter", Theme::review_bar_key()),
+            Span::styled(" newline  ", Theme::review_bar_label()),
             Span::styled("Esc", Theme::review_bar_key()),
             Span::styled(" cancel", Theme::review_bar_label()),
         ]);

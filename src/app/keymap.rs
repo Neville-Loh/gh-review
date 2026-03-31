@@ -462,6 +462,7 @@ impl Keymap {
             (String::new(), ""),
             // Review actions
             (one("comment_on_line"), "Comment on line"),
+            (one("comment"), "Review comment"),
             (one("suggest"), "Suggest change on current line"),
             (one("approve"), "Approve"),
             (one("submit"), "Submit review"),
@@ -713,6 +714,10 @@ impl Keymap {
                 ],
             ),
             B::diff(&command::unapprove, vec![Single('u'.into())]),
+            B::multi(
+                vec![Single('C'.into())],
+                vec![S::on(Diff, &command::comment).bar("comment")],
+            ),
         ]);
 
         // ── Diff context-sensitive keys ───────────────────────────────
@@ -727,7 +732,7 @@ impl Keymap {
                 &command::comment_on_line,
                 vec![Single('c'.into())],
                 RowContext::Code,
-                "comment",
+                "comment_on_line",
             ),
             B::diff_ctx_bar(
                 &command::suggest,
