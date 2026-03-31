@@ -44,7 +44,7 @@ struct ContentLine {
 impl DescriptionPanel {
     pub fn new() -> Self {
         Self {
-            visible: true,
+            visible: false,
             title: String::new(),
             body: String::new(),
             branch_info: String::new(),
