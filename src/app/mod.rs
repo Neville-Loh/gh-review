@@ -365,6 +365,7 @@ impl App {
                                 meta,
                                 files,
                                 comments,
+                                review_body_comments: Vec::new(),
                                 pending_comments: Vec::new(),
                                 threads,
                             },
@@ -388,6 +389,7 @@ impl App {
                 meta,
                 files: std::mem::take(&mut self.files),
                 comments: std::mem::take(&mut self.existing_comments),
+                review_body_comments: std::mem::take(&mut self.review_body_comments),
                 pending_comments: std::mem::take(&mut self.pending_comments),
                 threads: std::mem::take(&mut self.thread_map),
             };
@@ -412,6 +414,7 @@ impl App {
             self.pr_meta = Some(snapshot.meta);
             self.files = snapshot.files;
             self.existing_comments = snapshot.comments;
+            self.review_body_comments = snapshot.review_body_comments;
             self.pending_comments = snapshot.pending_comments;
             self.thread_map = snapshot.threads;
             self.file_picker.set_files(&self.files);

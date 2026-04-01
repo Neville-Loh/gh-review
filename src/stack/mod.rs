@@ -158,6 +158,7 @@ pub struct PrSnapshot {
     pub meta: PrMetadata,
     pub files: Vec<DiffFile>,
     pub comments: Vec<ExistingComment>,
+    pub review_body_comments: Vec<ExistingComment>,
     pub pending_comments: Vec<ReviewComment>,
     pub threads: HashMap<u64, ThreadInfo>,
 }
