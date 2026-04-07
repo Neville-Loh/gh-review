@@ -246,16 +246,51 @@ fn apply_char_diff(
 }
 
 fn common_affixes(a: &str, b: &str) -> (usize, usize) {
-    let prefix = a.bytes().zip(b.bytes()).take_while(|(x, y)| x == y).count();
+    let prefix: usize = a
+        .chars()
+        .zip(b.chars())
+        .take_while(|(x, y)| x == y)
+        .map(|(c, _)| c.len_utf8())
+        .sum();
 
     let a_rem = &a[prefix..];
     let b_rem = &b[prefix..];
-    let suffix = a_rem
-        .bytes()
+    let suffix: usize = a_rem
+        .chars()
         .rev()
-        .zip(b_rem.bytes().rev())
+        .zip(b_rem.chars().rev())
         .take_while(|(x, y)| x == y)
-        .count();
+        .map(|(c, _)| c.len_utf8())
+        .sum();
 
     (prefix, suffix)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn common_affixes_ascii() {
+        assert_eq!(common_affixes("hello world", "hello rust!"), (6, 0));
+        assert_eq!(common_affixes("abcXdef", "abcYdef"), (3, 3));
+    }
+
+    #[test]
+    fn common_affixes_multibyte_no_panic() {
+        let a = "┌──────────────────────────────────────────────┐";
+        let b = "┌──────────────────────────────────────────────┘";
+        let (prefix, suffix) = common_affixes(a, b);
+        assert!(a.is_char_boundary(prefix));
+        assert!(a.is_char_boundary(a.len() - suffix));
+        let _ = &a[prefix..];
+        let _ = &b[prefix..];
+    }
+
+    #[test]
+    fn common_affixes_identical() {
+        let s = "── same ──";
+        let (prefix, suffix) = common_affixes(s, s);
+        assert_eq!(prefix + suffix, s.len());
+    }
 }
