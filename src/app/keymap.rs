@@ -754,12 +754,12 @@ impl Keymap {
             ),
             B::diff_ctx_bar(
                 &command::comment_on_line,
-                vec![Single('c'.into())],
+                vec![Single('r'.into()), Single('c'.into())],
                 RowContext::COMMENT,
                 "reply",
             ),
             BindingDef {
-                keys: vec![Single('r'.into())],
+                keys: vec![Single('R'.into())],
                 scopes: vec![
                     S::on(Diff, &command::resolve)
                         .bar("resolve")
