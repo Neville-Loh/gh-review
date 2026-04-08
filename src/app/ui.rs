@@ -111,6 +111,7 @@ impl App {
                 &self.keymap,
                 self.focus,
                 !self.stack.is_empty(),
+                self.ai_available,
             );
         }
 

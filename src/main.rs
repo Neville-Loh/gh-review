@@ -8,6 +8,7 @@ mod editor;
 mod event;
 mod gh;
 mod highlight;
+mod llm;
 mod search;
 pub mod stack;
 mod terminal;
