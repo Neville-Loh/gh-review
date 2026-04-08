@@ -24,9 +24,10 @@ impl ReviewBar {
         keymap: &Keymap,
         focus: Focus,
         has_stack: bool,
+        ai_available: bool,
     ) {
         let has_pending = pending_count > 0;
-        let pairs = keymap.bar_hints(focus, context, has_stack, has_pending);
+        let pairs = keymap.bar_hints(focus, context, has_stack, has_pending, ai_available);
         let mut spans: Vec<Span<'static>> = Vec::new();
         for (hint, key_label) in pairs {
             spans.push(Span::styled(

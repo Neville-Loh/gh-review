@@ -96,6 +96,8 @@ enum HintCondition {
     WhenHasPending,
     /// Show "resolve" or "unresolve" depending on thread state.
     ResolveToggle,
+    /// Show only when AI (Claude CLI) is available.
+    WhenAiAvailable,
 }
 
 /// Pairs a [`Panel`] with the [`Command`] to run when the key fires there,
@@ -336,6 +338,7 @@ impl Keymap {
         context: RowContext,
         has_stack: bool,
         has_pending: bool,
+        ai_available: bool,
     ) -> Vec<(&str, &str)> {
         let panel = match focus {
             Focus::DiffView => Panel::Diff,
@@ -369,6 +372,9 @@ impl Keymap {
                         "resolve"
                     };
                     Some((label, e.key_label.as_str()))
+                }
+                HintCondition::WhenAiAvailable => {
+                    ai_available.then_some((e.bar_hint, e.key_label.as_str()))
                 }
             })
             .collect()
@@ -796,6 +802,14 @@ impl Keymap {
         defs.push(B::multi(
             vec![Single('e'.into())],
             vec![S::on(Description, &command::edit_description).bar("edit")],
+        ));
+        defs.push(B::multi(
+            vec![Single('p'.into())],
+            vec![
+                S::on(Description, &command::generate_description)
+                    .bar("AI generate")
+                    .when(HintCondition::WhenAiAvailable),
+            ],
         ));
 
         // ── Pending sequences (two-key combos) ────────────────────────

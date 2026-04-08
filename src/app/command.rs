@@ -146,4 +146,7 @@ define_commands! {
     // File picker
     picker_down,          "File picker: next",             false;
     picker_up,            "File picker: previous",         false;
+
+    // AI
+    generate_description, "Generate PR description with AI", true;
 }

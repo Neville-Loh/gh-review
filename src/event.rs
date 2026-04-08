@@ -47,6 +47,12 @@ pub enum AppEvent {
         description: String,
         result: Result<(), String>,
     },
+    AiAvailabilityChecked(bool),
+    AiDescriptionGenerated {
+        pr: u64,
+        title: String,
+        body: String,
+    },
     Error(String),
 }
 

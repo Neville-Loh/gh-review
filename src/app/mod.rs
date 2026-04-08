@@ -99,6 +99,7 @@ pub struct App {
     pub(crate) config: Config,
     pub(crate) keymap: keymap::Keymap,
     pub(crate) tx: mpsc::UnboundedSender<AppEvent>,
+    pub(crate) ai_available: bool,
 }
 
 impl App {
@@ -142,6 +143,7 @@ impl App {
             config,
             keymap,
             tx,
+            ai_available: false,
         }
     }
 
@@ -190,6 +192,12 @@ impl App {
             })
         });
         let _ = (repo, pr);
+
+        let ai_tx = self.tx.clone();
+        tokio::spawn(async move {
+            let available = crate::llm::detect_claude_cli().await;
+            let _ = ai_tx.send(AppEvent::AiAvailabilityChecked(available));
+        });
     }
 
     fn spawn_fetch<F>(&self, label: &'static str, make_future: F)
@@ -317,6 +325,34 @@ impl App {
                 Ok(()) => self.status.success(description),
                 Err(msg) => self.status.error(format!("✗ {description}: {msg}")),
             },
+            AppEvent::AiAvailabilityChecked(available) => {
+                self.ai_available = available;
+            }
+            AppEvent::AiDescriptionGenerated { pr, title, body } if pr == self.pr_number => {
+                let branch_info = self.description_panel.branch_info.clone();
+                let reviewers = self.description_panel.reviewers.clone();
+                self.description_panel
+                    .load(&title, Some(&body), &branch_info, reviewers);
+                if !self.description_panel.visible {
+                    self.description_panel.visible = true;
+                    self.focus = Focus::Description;
+                }
+
+                let repo = self.repo.clone();
+                let tx = self.tx.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = crate::gh::update_pr(&repo, pr, "title", &title).await {
+                        let _ = tx.send(AppEvent::Error(format!("Failed to update title: {e}")));
+                        return;
+                    }
+                    if let Err(e) = crate::gh::update_pr(&repo, pr, "body", &body).await {
+                        let _ = tx.send(AppEvent::Error(format!("Failed to update body: {e}")));
+                    }
+                });
+
+                self.status.success("Description generated and saved");
+            }
+            AppEvent::AiDescriptionGenerated { .. } => {}
             AppEvent::Error(msg) => {
                 self.status.error(msg);
                 self.loading = false;

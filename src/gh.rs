@@ -293,6 +293,16 @@ pub async fn update_pr(repo: &str, pr_number: u64, field: &str, value: &str) -> 
     Ok(())
 }
 
+pub async fn fetch_pr_commits(repo: &str, pr_number: u64) -> Result<Vec<String>> {
+    let url = format!("repos/{repo}/pulls/{pr_number}/commits");
+    let output = run_gh(&["api", &url, "--paginate", "-q", ".[].commit.message"]).await?;
+    Ok(output
+        .lines()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect())
+}
+
 pub async fn fetch_pr_files(repo: &str, pr_number: u64) -> Result<Vec<DiffFile>> {
     let url = format!("repos/{repo}/pulls/{pr_number}/files");
     let output = run_gh(&["api", &url, "--paginate"]).await?;
@@ -393,78 +403,43 @@ pub async fn submit_review(
     body: &str,
     comments: &[ReviewComment],
 ) -> Result<()> {
-    let (owner, name) = repo
-        .split_once('/')
-        .context("Invalid repo format, expected owner/name")?;
+    let url = format!("repos/{repo}/pulls/{pr_number}/reviews");
 
-    let pr_id = fetch_pr_node_id(owner, name, pr_number).await?;
-
-    let side_str = |s: crate::types::Side| match s {
-        crate::types::Side::Left => "LEFT",
-        crate::types::Side::Right => "RIGHT",
-    };
-
-    let threads: Vec<serde_json::Value> = comments
+    let comments_json: Vec<serde_json::Value> = comments
         .iter()
         .map(|c| {
+            let side_str = match c.side {
+                crate::types::Side::Left => "LEFT",
+                crate::types::Side::Right => "RIGHT",
+            };
             let mut obj = serde_json::json!({
                 "path": c.path,
                 "line": c.line,
-                "side": side_str(c.side),
+                "side": side_str,
                 "body": c.body
             });
             if let Some(sl) = c.start_line {
-                obj["startLine"] = serde_json::json!(sl);
+                obj["start_line"] = serde_json::json!(sl);
             }
             if let Some(ss) = c.start_side {
-                obj["startSide"] = serde_json::json!(side_str(ss));
+                obj["start_side"] = serde_json::json!(match ss {
+                    crate::types::Side::Left => "LEFT",
+                    crate::types::Side::Right => "RIGHT",
+                });
             }
             obj
         })
         .collect();
 
-    let mutation = r#"
-        mutation($input: AddPullRequestReviewInput!) {
-            addPullRequestReview(input: $input) {
-                pullRequestReview { id }
-            }
-        }
-    "#;
-
-    let mut input = serde_json::json!({
-        "pullRequestId": pr_id,
+    let json_body = serde_json::json!({
         "event": event.as_api_str(),
+        "body": body,
+        "comments": comments_json
     });
-    if !body.is_empty() {
-        input["body"] = serde_json::json!(body);
-    }
-    if !threads.is_empty() {
-        input["threads"] = serde_json::json!(threads);
-    }
 
-    let result = run_graphql(mutation, &serde_json::json!({ "input": input })).await?;
-    if let Some(errors) = result["errors"].as_array() {
-        if let Some(msg) = errors.first().and_then(|e| e["message"].as_str()) {
-            bail!("{msg}");
-        }
-    }
+    let json_str = serde_json::to_string(&json_body)?;
+    run_gh_with_stdin(&["api", &url, "-X", "POST", "--input", "-"], &json_str).await?;
     Ok(())
-}
-
-async fn fetch_pr_node_id(owner: &str, name: &str, pr_number: u64) -> Result<String> {
-    let query = r#"
-        query($owner: String!, $name: String!, $pr: Int!) {
-            repository(owner: $owner, name: $name) {
-                pullRequest(number: $pr) { id }
-            }
-        }
-    "#;
-    let vars = serde_json::json!({ "owner": owner, "name": name, "pr": pr_number });
-    let result = run_graphql(query, &vars).await?;
-    result["data"]["repository"]["pullRequest"]["id"]
-        .as_str()
-        .map(String::from)
-        .context("Failed to resolve PR node ID")
 }
 
 /// Send a JSON body to `gh api` via stdin and return the raw output.

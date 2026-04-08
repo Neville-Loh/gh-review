@@ -518,3 +518,59 @@ pub fn stack_down(app: &mut App) {
 pub fn lgtm(app: &mut App) {
     app.submit_review(ReviewEvent::Approve, "LGTM, ship it".to_string());
 }
+
+// ── AI ───────────────────────────────────────────────────────────────
+
+pub fn generate_description(app: &mut App) {
+    if !app.ai_available {
+        app.status
+            .error("Claude CLI not found. Install from https://docs.claude.com");
+        return;
+    }
+    if app.files.is_empty() {
+        app.status.error("No diff loaded yet");
+        return;
+    }
+
+    app.status.info("Generating description...");
+
+    let prompt = crate::llm::prompt::build_description_prompt(
+        &app.files,
+        app.pr_meta.as_ref(),
+        &app.description_panel.title,
+        &app.description_panel.body,
+    );
+    let system = crate::llm::prompt::DESCRIPTION_SYSTEM_PROMPT.to_string();
+    let provider = crate::llm::claude_cli::ClaudeCliProvider::new("sonnet");
+    let tx = app.tx.clone();
+    let pr = app.pr_number;
+    let repo = app.repo.clone();
+
+    tokio::spawn(async move {
+        use crate::llm::LlmProvider;
+
+        let commits = crate::gh::fetch_pr_commits(&repo, pr)
+            .await
+            .unwrap_or_default();
+
+        let full_prompt = if commits.is_empty() {
+            prompt
+        } else {
+            format!("{prompt}\nCommit messages:\n{}\n", commits.join("\n"))
+        };
+
+        match provider.complete(&system, &full_prompt).await {
+            Ok(response) => {
+                let (title, body) = crate::llm::prompt::parse_title_body(&response);
+                let _ = tx.send(crate::event::AppEvent::AiDescriptionGenerated {
+                    pr,
+                    title,
+                    body,
+                });
+            }
+            Err(e) => {
+                let _ = tx.send(crate::event::AppEvent::Error(format!("AI: {e}")));
+            }
+        }
+    });
+}
