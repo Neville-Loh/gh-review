@@ -1,31 +1,70 @@
+use std::{process::Command, sync::LazyLock};
+
+use ansi_to_tui::IntoText;
 use ratatui::style::{Color, Modifier, Style};
+
+static ADDED_LINE: LazyLock<Style> =
+    LazyLock::new(|| git_diff_style("color.diff.new", Style::default().fg(Color::Green)));
+static REMOVED_LINE: LazyLock<Style> =
+    LazyLock::new(|| git_diff_style("color.diff.old", Style::default().fg(Color::Red)));
+
+fn git_diff_style(name: &str, fallback: Style) -> Style {
+    let Ok(output) = Command::new("git")
+        .args(["config", "--get-color", name])
+        .output()
+    else {
+        return fallback;
+    };
+
+    if !output.status.success() {
+        return fallback;
+    }
+
+    style_from_ansi(&output.stdout)
+        .map(|style| fallback.patch(style))
+        .unwrap_or(fallback)
+}
+
+fn style_from_ansi(ansi: &[u8]) -> Option<Style> {
+    let mut styled_space = ansi.to_vec();
+    styled_space.push(b' ');
+    styled_space
+        .as_slice()
+        .into_text()
+        .ok()?
+        .lines
+        .first()?
+        .spans
+        .first()
+        .map(|span| span.style)
+}
 
 pub struct Theme;
 
 #[allow(dead_code)]
 impl Theme {
     pub fn added_line_bg_color() -> Color {
-        Color::Rgb(0, 40, 0)
+        ADDED_LINE.bg.unwrap_or(Color::Reset)
     }
 
     pub fn removed_line_bg_color() -> Color {
-        Color::Rgb(40, 0, 0)
+        REMOVED_LINE.bg.unwrap_or(Color::Reset)
     }
 
     pub fn added_line() -> Style {
-        Style::default().fg(Color::Green)
+        Style::default().fg(ADDED_LINE.fg.unwrap_or(Color::Green))
     }
 
     pub fn added_line_bg() -> Style {
-        Style::default().fg(Color::Green).bg(Color::Rgb(0, 40, 0))
+        *ADDED_LINE
     }
 
     pub fn removed_line() -> Style {
-        Style::default().fg(Color::Red)
+        Style::default().fg(REMOVED_LINE.fg.unwrap_or(Color::Red))
     }
 
     pub fn removed_line_bg() -> Style {
-        Style::default().fg(Color::Red).bg(Color::Rgb(40, 0, 0))
+        *REMOVED_LINE
     }
 
     pub fn context_line() -> Style {
@@ -234,5 +273,18 @@ impl Theme {
 
     pub fn visual_select() -> Style {
         Style::default().bg(Color::Rgb(60, 60, 30))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_git_truecolor_style() {
+        let style = style_from_ansi(b"\x1b[38;2;76;79;105;48;2;204;225;205m").unwrap();
+
+        assert_eq!(style.fg, Some(Color::Rgb(76, 79, 105)));
+        assert_eq!(style.bg, Some(Color::Rgb(204, 225, 205)));
     }
 }
