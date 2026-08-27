@@ -86,27 +86,21 @@ impl Theme {
     }
 
     pub fn selected_line() -> Style {
-        Style::default()
-            .bg(Color::Rgb(50, 50, 80))
-            .add_modifier(Modifier::BOLD)
+        Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD)
     }
 
     pub fn selected_cursor() -> Style {
         Style::default()
-            .fg(Color::Rgb(100, 140, 255))
-            .bg(Color::Rgb(50, 50, 80))
-            .add_modifier(Modifier::BOLD)
+            .fg(Color::Blue)
+            .add_modifier(Modifier::REVERSED | Modifier::BOLD)
     }
 
     pub fn file_list_selected() -> Style {
-        Style::default()
-            .fg(Color::White)
-            .bg(Color::Rgb(50, 50, 80))
-            .add_modifier(Modifier::BOLD)
+        Style::default().add_modifier(Modifier::REVERSED | Modifier::BOLD)
     }
 
     pub fn file_list_normal() -> Style {
-        Style::default().fg(Color::White)
+        Style::default()
     }
 
     pub fn status_added() -> Style {
@@ -132,7 +126,7 @@ impl Theme {
     }
 
     pub fn review_bar() -> Style {
-        Style::default().bg(Color::Rgb(30, 30, 30))
+        Style::default().add_modifier(Modifier::REVERSED)
     }
 
     pub fn review_bar_key() -> Style {
@@ -142,7 +136,7 @@ impl Theme {
     }
 
     pub fn review_bar_label() -> Style {
-        Style::default().fg(Color::White)
+        Style::default()
     }
 
     pub fn pending_count() -> Style {
@@ -160,9 +154,7 @@ impl Theme {
     }
 
     pub fn title() -> Style {
-        Style::default()
-            .fg(Color::White)
-            .add_modifier(Modifier::BOLD)
+        Style::default().add_modifier(Modifier::BOLD)
     }
 
     pub fn expand_hint() -> Style {
@@ -184,14 +176,15 @@ impl Theme {
     }
 
     pub fn search_match() -> Style {
-        Style::default().bg(Color::Rgb(100, 80, 0)).fg(Color::White)
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::REVERSED)
     }
 
     pub fn search_current() -> Style {
         Style::default()
-            .bg(Color::Rgb(200, 150, 0))
-            .fg(Color::Black)
-            .add_modifier(Modifier::BOLD)
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::REVERSED | Modifier::BOLD)
     }
 
     pub fn search_prompt() -> Style {
@@ -210,9 +203,8 @@ impl Theme {
             .add_modifier(Modifier::DIM)
     }
 
-    // Comment thread colors — light tinted backgrounds for clear card visibility.
     pub fn comment_bg() -> Color {
-        Color::Rgb(30, 35, 55)
+        Color::Reset
     }
 
     pub fn comment_accent() -> Color {
@@ -220,11 +212,11 @@ impl Theme {
     }
 
     pub fn comment_fg() -> Color {
-        Color::Rgb(180, 200, 240)
+        Color::Reset
     }
 
     pub fn resolved_bg() -> Color {
-        Color::Rgb(28, 40, 32)
+        Color::Reset
     }
 
     pub fn resolved_accent() -> Color {
@@ -232,11 +224,11 @@ impl Theme {
     }
 
     pub fn resolved_fg() -> Color {
-        Color::Rgb(140, 180, 150)
+        Color::Reset
     }
 
     pub fn pending_bg() -> Color {
-        Color::Rgb(45, 38, 25)
+        Color::Reset
     }
 
     pub fn pending_accent() -> Color {
@@ -244,35 +236,35 @@ impl Theme {
     }
 
     pub fn pending_fg() -> Color {
-        Color::Rgb(230, 200, 130)
+        Color::Reset
     }
 
     pub fn suggestion_added() -> Style {
-        Style::default().fg(Color::Green).bg(Color::Rgb(0, 30, 0))
+        Style::default().fg(Color::Green)
     }
 
     pub fn suggestion_added_bg() -> Color {
-        Color::Rgb(0, 30, 0)
+        Color::Reset
     }
 
     pub fn suggestion_added_highlight_bg() -> Color {
-        Color::Rgb(0, 100, 0)
+        Color::Green
     }
 
     pub fn suggestion_removed() -> Style {
-        Style::default().fg(Color::Red).bg(Color::Rgb(30, 0, 0))
+        Style::default().fg(Color::Red)
     }
 
     pub fn suggestion_removed_bg() -> Color {
-        Color::Rgb(30, 0, 0)
+        Color::Reset
     }
 
     pub fn suggestion_removed_highlight_bg() -> Color {
-        Color::Rgb(100, 0, 0)
+        Color::Red
     }
 
     pub fn visual_select() -> Style {
-        Style::default().bg(Color::Rgb(60, 60, 30))
+        Style::default().add_modifier(Modifier::REVERSED)
     }
 }
 
@@ -286,5 +278,31 @@ mod tests {
 
         assert_eq!(style.fg, Some(Color::Rgb(76, 79, 105)));
         assert_eq!(style.bg, Some(Color::Rgb(204, 225, 205)));
+    }
+
+    #[test]
+    fn ui_backgrounds_use_terminal_palette() {
+        for style in [
+            Theme::selected_line(),
+            Theme::file_list_selected(),
+            Theme::review_bar(),
+            Theme::search_match(),
+            Theme::search_current(),
+            Theme::visual_select(),
+        ] {
+            assert!(style.bg.is_none());
+        }
+
+        for color in [
+            Theme::comment_bg(),
+            Theme::resolved_bg(),
+            Theme::pending_bg(),
+            Theme::suggestion_added_bg(),
+            Theme::suggestion_added_highlight_bg(),
+            Theme::suggestion_removed_bg(),
+            Theme::suggestion_removed_highlight_bg(),
+        ] {
+            assert!(!matches!(color, Color::Rgb(..)));
+        }
     }
 }
