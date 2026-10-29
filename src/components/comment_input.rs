@@ -227,14 +227,20 @@ impl CommentInput {
         // Clear the background
         Widget::render(Clear, popup_area, buf);
 
+        let location = match self.start_line {
+            Some(start) if start != self.line => {
+                format!("{}:{}–{}", self.file_path, start, self.line)
+            }
+            _ => format!("{}:{}", self.file_path, self.line),
+        };
         let title = if self.reply_to_id.is_some() {
             format!(" Reply to @{} ", self.reply_author)
         } else if self.editing_pending_idx.is_some() {
-            format!(" Edit comment on {}:{} ", self.file_path, self.line)
+            format!(" Edit comment on {location} ")
         } else if self.is_suggestion {
-            format!(" Suggest change on {}:{} ", self.file_path, self.line)
+            format!(" Suggest change on {location} ")
         } else {
-            format!(" Comment on {}:{} ", self.file_path, self.line)
+            format!(" Comment on {location} ")
         };
         let block = Block::default()
             .title(title)
